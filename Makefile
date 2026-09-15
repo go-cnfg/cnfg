@@ -12,7 +12,7 @@ all: clean tidy-check lint api-check test
 
 .PHONY: tools
 tools: ## Build dev tools
-	cd ${TOOLS_DIR} && GOBIN=${BIN} go install tool
+	@cd ${TOOLS_DIR} && GOBIN=${BIN} go install tool
 
 .PHONY: lint
 lint: | tools ## Run linter
