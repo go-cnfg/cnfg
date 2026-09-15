@@ -25,6 +25,9 @@ linters:
     - godot
     - funlen
     - lll
+  settings:
+    gomoddirectives:
+      replace-local: true
   exclusions:
     presets:
       - common-false-positives

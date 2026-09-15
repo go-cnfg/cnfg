@@ -9,62 +9,153 @@ on:
   push:
     branches:
       - main
-  release:
-    types:
-      - published
 
-env:
-  IS_PR: ${{github.event_name == 'pull_request' || ''}}
-  IS_MAIN: ${{github.event_name == 'push' || ''}}
-  IS_RELEASE: ${{github.event_name == 'release' || ''}}
+permissions:
+  contents: read
 
 jobs:
-  build:
+  discover:
     runs-on: ubuntu-latest
+    outputs:
+      mods: ${{ steps.list.outputs.mods }}
+      changed: ${{ steps.changed.outputs.mods }}
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/cache/restore@v4
         with:
-          key: ${{ runner.os }}-go-cache-${{ hashFiles('**/go.sum') }}
-          restore-keys: ${{ runner.os }}-go-
-          path: |
-            ~/.cache/golangci-lint
-            ~/.cache/go-build
-            ~/go/pkg/mod
+          fetch-depth: 0
+          fetch-tags: true
+
+      - id: list
+        run: |
+          mods=(cnfg)
+          for d in */; do
+            d=${d%/}
+            if [ "$d" != "internal" ] && [ -f "$d/go.mod" ]; then
+              mods+=("$d")
+            fi
+          done
+          echo "mods=$(printf '%s\n' "${mods[@]}" | jq -R . | jq -s -c .)" >> "$GITHUB_OUTPUT"
+
+      - id: changed
+        run: |
+          changed=()
+          for m in $(echo '${{ steps.list.outputs.mods }}' | jq -r '.[]'); do
+            if [ "$m" = "cnfg" ]; then
+              last=$(git tag --list 'v*' | sort -V | tail -1)
+              paths=(. ':!internal' ':!.github')
+              for d in */; do
+                d=${d%/}
+                if [ -f "$d/go.mod" ]; then
+                  paths+=(":!$d")
+                fi
+              done
+            else
+              last=$(git tag --list "$m/v*" | sort -V | tail -1)
+              paths=("$m/")
+            fi
+            if [ -z "$last" ] || ! git diff --quiet "$last"..HEAD -- "${paths[@]}"; then
+              changed+=("$m")
+            fi
+          done
+          if [ ${#changed[@]} -eq 0 ]; then
+            echo "mods=[]" >> "$GITHUB_OUTPUT"
+          else
+            echo "mods=$(printf '%s\n' "${changed[@]}" | jq -R . | jq -s -c .)" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mod: ${{ fromJSON(needs.discover.outputs.mods) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
-          cache: false
+          go-version-file: ./internal/tools/go.mod
+          cache-dependency-path: "**/go.sum"
 
-      - name: Install dependencies
-        run: go mod download
+      - name: Tidy check
+        run: make tidy-check/${{ matrix.mod }}
 
       - name: Lint
-        run: make lint
+        run: make lint/${{ matrix.mod }}
+
+      - name: API check
+        run: make api-check/${{ matrix.mod }}
 
       - name: Test
-        run: make test
+        run: make test/${{ matrix.mod }}
 
-      - name: Upload results to Codecov
+      - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage.txt
+          files: ./.output/coverage/${{ matrix.mod }}.txt
+          flags: ${{ matrix.mod }}
 
-      - name: Upload test results to Codecov
+      - name: Upload test results
         if: ${{ !cancelled() }}
         uses: codecov/test-results-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./junit.xml
+          files: ./.output/junit/${{ matrix.mod }}.xml
+          flags: ${{ matrix.mod }}
 
-      - uses: actions/cache/save@v4
-        if: ${{ env.IS_MAIN }}
+  tag:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.discover.outputs.changed != '[]' }}
+    needs:
+      - discover
+      - test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        mod: ${{ fromJSON(needs.discover.outputs.changed) }}
+    steps:
+      - uses: actions/checkout@v4
         with:
-          key: ${{ runner.os }}-go-cache-${{ hashFiles('**/go.sum') }}
-          path: |
-            ~/.cache/golangci-lint
-            ~/.cache/go-build
-            ~/go/pkg/mod
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ./internal/tools/go.mod
+          cache-dependency-path: "**/go.sum"
+
+      - name: Tag
+        run: make tag/${{ matrix.mod }}
+
+      - name: Push tag
+        run: |
+          prefix=""
+          if [ "${{ matrix.mod }}" != "cnfg" ]; then
+            prefix="${{ matrix.mod }}/"
+          fi
+          tag=$(git tag --points-at HEAD --list "$prefix"'v*' | head -1)
+          if [ -n "$tag" ] && ! git ls-remote --exit-code origin "refs/tags/$tag" >/dev/null 2>&1; then
+            git push origin "$tag"
+          fi
+
+  ci:
+    needs:
+      - discover
+      - test
+      - tag
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify
+        run: |
+          [ "${{ needs.discover.result }}" = "success" ] || exit 1
+          case "${{ needs.test.result }}" in success|skipped) ;; *) exit 1 ;; esac
+          case "${{ needs.tag.result }}"  in success|skipped) ;; *) exit 1 ;; esac

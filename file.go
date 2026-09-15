@@ -7,16 +7,15 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"reflect"
-	"strings"
 )
 
-// File decodes the config file at path on top of the config.
-// The decoder is picked from Decoders by the file extension.
-func File[T any](path string) Parser[T] {
+// Decode decodes the config file at path with dec on top of the config.
+// The cnfg/json, cnfg/yaml and cnfg/toml modules use it to provide a File parser
+// for their format, and any other decoder works the same way.
+func Decode[T any](dec Decoder, path string) Parser[T] {
 	return func(cfg T) (T, error) {
-		return decodeFile(cfg, path)
+		return decodeFile(cfg, dec, path)
 	}
 }
 
@@ -31,10 +30,10 @@ func Optional[T any](p Parser[T]) Parser[T] {
 	}
 }
 
-// FileFlag decodes the config file the user gave with the named flag, for example -config app.json.
+// DecodeFlag decodes the config file the user gave with the named flag, for example -config app.json.
 // The flag is registered in set, which should be the one given to FlagSet later on, and args are
 // scanned for it before any other source is read. It is a no op when the flag was not given.
-func FileFlag[T any](set *flag.FlagSet, name string, args []string) Parser[T] {
+func DecodeFlag[T any](dec Decoder, set *flag.FlagSet, name string, args []string) Parser[T] {
 	set.String(name, "", "path to config file")
 
 	return func(cfg T) (T, error) {
@@ -47,7 +46,7 @@ func FileFlag[T any](set *flag.FlagSet, name string, args []string) Parser[T] {
 		if path == "" {
 			return cfg, nil
 		}
-		return decodeFile(cfg, path)
+		return decodeFile(cfg, dec, path)
 	}
 }
 
@@ -67,7 +66,7 @@ func pathFromArgs(setName, name string, args []string, ff []field) string {
 	return *path
 }
 
-func decodeFile[T any](cfg T, path string) (T, error) {
+func decodeFile[T any](cfg T, dec Decoder, path string) (T, error) {
 	v := reflect.ValueOf(&cfg).Elem()
 	if v.Kind() != reflect.Struct {
 		return cfg, fmt.Errorf("%w, got %T", ErrNotStruct, cfg)
@@ -76,11 +75,6 @@ func decodeFile[T any](cfg T, path string) (T, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return cfg, fmt.Errorf("%w %s: %w", ErrReadFile, path, err)
-	}
-
-	dec, ok := Decoders[strings.ToLower(filepath.Ext(path))]
-	if !ok {
-		return cfg, fmt.Errorf("%w: %s", ErrUnknownFormat, path)
 	}
 
 	tree := map[string]any{}
