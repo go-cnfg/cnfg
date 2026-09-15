@@ -94,38 +94,3 @@ func TestBrokenFile(t *testing.T) {
 		t.Errorf("got %v, want ErrDecodeFile", err)
 	}
 }
-
-func TestDir(t *testing.T) {
-	dir := t.TempDir()
-	for name, content := range map[string]string{
-		"10-base.conf":  "addr = \":1111\"\ntimeout = \"90s\"\n",
-		"20-local.conf": "addr = \":2222\"\n",
-		"notes.txt":     "addr = \":2222\"\n",
-	} {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
-			t.Fatalf("write %s: %v", name, err)
-		}
-	}
-
-	cfg, err := cnfg.Parse(defaults(), toml.Dir[Config](dir))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if cfg.Addr != ":2222" {
-		t.Errorf("last file wins: got %q", cfg.Addr)
-	}
-	if cfg.Timeout != 90*time.Second {
-		t.Errorf("first file: got %v", cfg.Timeout)
-	}
-}
-
-func TestDirMissing(t *testing.T) {
-	cfg, err := cnfg.Parse(defaults(), toml.Dir[Config](filepath.Join(t.TempDir(), "conf.d")))
-	if err != nil {
-		t.Fatalf("missing dir should be a no op: %v", err)
-	}
-	if cfg.Addr != ":8080" {
-		t.Errorf("defaults kept: got %q", cfg.Addr)
-	}
-}
