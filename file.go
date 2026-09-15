@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"reflect"
 )
 
@@ -16,6 +17,29 @@ import (
 func Decode[T any](dec Decoder, path string) Parser[T] {
 	return func(cfg T) (T, error) {
 		return decodeFile(cfg, dec, path)
+	}
+}
+
+// DecodeGlob decodes every file matching pattern with dec on top of the config, in the
+// order filepath.Glob returns them, which is lexical. It is the drop-in directory
+// convention of /etc: a file later in the listing wins, and a pattern that matches
+// nothing is a no op, so name the files 10-base.conf, 20-app.conf, 99-local.conf.
+func DecodeGlob[T any](dec Decoder, pattern string) Parser[T] {
+	return func(cfg T) (T, error) {
+		paths, err := filepath.Glob(pattern)
+		if err != nil {
+			return cfg, fmt.Errorf("%w %s: %w", ErrReadFile, pattern, err)
+		}
+
+		for _, path := range paths {
+			if info, err := os.Stat(path); err != nil || info.IsDir() {
+				continue
+			}
+			if cfg, err = decodeFile(cfg, dec, path); err != nil {
+				return cfg, err
+			}
+		}
+		return cfg, nil
 	}
 }
 
