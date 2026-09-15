@@ -101,7 +101,7 @@ api-check: ${MODS_APICHECK} ## Fail on breaking API changes vs the latest tag
 .PHONY: ${MODS_APICHECK}
 ${MODS_APICHECK}: MOD  = ${@F}
 ${MODS_APICHECK}: LAST = $(call mod_last_tag,${@F})
-${MODS_APICHECK}: BASE = $(if $(LAST),$(LAST:$(call mod_prefix,${@F})%=%),none -version=v1.0.0)
+${MODS_APICHECK}: BASE = $(if $(LAST),$(LAST:$(call mod_prefix,${@F})%=%),none -version=v0.0.1)
 ${MODS_APICHECK}: | tools
 	cd $(call mod_dir,${MOD}) && ${GORELEASE} -base=${BASE}
 
@@ -113,7 +113,7 @@ ${MODS_TAG}: MOD  = ${@F}
 ${MODS_TAG}: LAST = $(call mod_last_tag,${@F})
 ${MODS_TAG}: BASE = $(LAST:$(call mod_prefix,${@F})%=%)
 ${MODS_TAG}: | tools
-	@v="v1.0.0"; if [ -n "${LAST}" ]; then \
+	@v="v0.0.1"; if [ -n "${LAST}" ]; then \
 	  v=$$(cd $(call mod_dir,${MOD}) && ${GORELEASE} -base=${BASE} | tee /dev/stderr | awk '/^Suggested version:/ {print $$3; exit}'); \
 	  test -n "$$v" || { echo "${MOD}: gorelease did not suggest a version" >&2; exit 1; }; \
 	fi; \
