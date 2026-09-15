@@ -103,7 +103,11 @@ ${MODS_APICHECK}: MOD  = ${@F}
 ${MODS_APICHECK}: LAST = $(call mod_last_tag,${@F})
 ${MODS_APICHECK}: BASE = $(if $(LAST),$(LAST:$(call mod_prefix,${@F})%=%),none -version=v1.0.0)
 ${MODS_APICHECK}: | tools
-	cd $(call mod_dir,${MOD}) && ${GORELEASE} -base=${BASE}
+	@if [ -n "$$(cd $(call mod_dir,${MOD}) && go mod edit -json | jq -r '.Replace[]? | select(.New.Path | startswith(".")) | .Old.Path')" ]; then \
+	  echo "${MOD}: skipped, module still has a local replace"; \
+	else \
+	  set -x; cd $(call mod_dir,${MOD}) && ${GORELEASE} -base=${BASE}; \
+	fi
 
 .PHONY: tag
 tag: ${MODS_TAG} ## Tag any mod that has changes since its last tag
@@ -113,7 +117,11 @@ ${MODS_TAG}: MOD  = ${@F}
 ${MODS_TAG}: LAST = $(call mod_last_tag,${@F})
 ${MODS_TAG}: BASE = $(LAST:$(call mod_prefix,${@F})%=%)
 ${MODS_TAG}: | tools
-	@v="v1.0.0"; if [ -n "${LAST}" ]; then \
+	@if [ -n "$$(cd $(call mod_dir,${MOD}) && go mod edit -json | jq -r '.Replace[]? | select(.New.Path | startswith(".")) | .Old.Path')" ]; then \
+	  echo "${MOD}: skipped, module still has a local replace"; \
+	  exit 0; \
+	fi; \
+	v="v1.0.0"; if [ -n "${LAST}" ]; then \
 	  v=$$(cd $(call mod_dir,${MOD}) && ${GORELEASE} -base=${BASE} | tee /dev/stderr | awk '/^Suggested version:/ {print $$3; exit}'); \
 	  test -n "$$v" || { echo "${MOD}: gorelease did not suggest a version" >&2; exit 1; }; \
 	fi; \
