@@ -20,7 +20,7 @@ func main() {
         Addr:    ":8080",
         Timeout: 5 * time.Second,
     },
-        cnfg.Optional(json.File[Config]("/etc/app/config.json")),
+        cnfg.Optional(cnfg.Decode[Config](json.Unmarshal, "/etc/app/config.json")),
         cnfg.Env[Config]("APP"),
         cnfg.Flags[Config](),
     )
@@ -46,21 +46,17 @@ func main() {
 
 ## Modules
 
-The core module reads env vars and flags and needs nothing outside the standard library.
-Config file formats and validation live in modules of their own, so a dependency is only
-pulled in when you ask for it:
+The core module reads env vars, flags and config files, and needs nothing outside the standard
+library. A config file format is a decoder you pass in, so the format library is your own
+dependency and cnfg never drags one in:
 
 | Module | Provides | Depends on |
 | --- | --- | --- |
-| `github.com/go-cnfg/cnfg` | `Parse`, `Env`, `Flags`, `Decode` | standard library |
-| `github.com/go-cnfg/cnfg/json` | `json.File`, `json.FileFlag` | standard library |
-| `github.com/go-cnfg/cnfg/yaml` | `yaml.File`, `yaml.FileFlag` | `go.yaml.in/yaml/v3` |
-| `github.com/go-cnfg/cnfg/toml` | `toml.File`, `toml.FileFlag` | `github.com/BurntSushi/toml` |
+| `github.com/go-cnfg/cnfg` | `Parse`, `Env`, `Flags`, `Decode` and friends | standard library |
 | `github.com/go-cnfg/cnfg/validator` | `validator.Validate` | `github.com/go-playground/validator/v10` |
 
 ```sh
 go get github.com/go-cnfg/cnfg
-go get github.com/go-cnfg/cnfg/yaml
 ```
 
 ## Parsers
@@ -101,8 +97,6 @@ of your config together with the error when a parser fails.
 | `DecodeDir[T](dec, dir)` | Every `.conf` file of a drop-in directory. |
 | `DecodeFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
 | `Optional(p)` | Wraps a parser so that a missing file is not an error. |
-| `json.File[T](path)`, `yaml.File[T](path)`, `toml.File[T](path)` | Config file in that format. |
-| `json.FileFlag[T](set, name, args)` and friends | Config file the user gave with a flag. |
 | `validator.Validate[T]()` | Nothing, it checks the config that the other parsers filled. |
 
 ## Names
@@ -134,18 +128,19 @@ ignores case, dashes and underscores. `{"server": {"tls-cert": "a.pem"}}` and
 
 ## Config files
 
-Every format is a package of its own, so you import the one you want and get a `File` parser
-for it:
+`Decode` takes the function that decodes the bytes into a `*map[string]any`, which is what
+`encoding/json`, `go.yaml.in/yaml/v3` and `github.com/BurntSushi/toml` all give you, so the
+format is simply the library you already import:
 
 ```go
-import "github.com/go-cnfg/cnfg/yaml"
+import "go.yaml.in/yaml/v3"
 
-cfg, err := cnfg.Parse(defaults, cnfg.Optional(yaml.File[Config]("/etc/app/config.yaml")))
+cfg, err := cnfg.Parse(defaults, cnfg.Optional(cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml")))
 ```
 
 `Optional` turns a missing file into a no op, without it a missing file is an error wrapping
-`fs.ErrNotExist`. Any other format works the same way with `cnfg.Decode`, which takes the
-function that decodes the bytes into a `*map[string]any`:
+`fs.ErrNotExist`. Anything with that signature works, so a format cnfg has never heard of
+needs no support from cnfg:
 
 ```go
 cfg, err := cnfg.Parse(defaults, cnfg.Decode[Config](hcl.Unmarshal, "/etc/app/config.hcl"))
@@ -154,8 +149,8 @@ cfg, err := cnfg.Parse(defaults, cnfg.Decode[Config](hcl.Unmarshal, "/etc/app/co
 Values from files go through the same parsing as env vars and flags, so a duration is written
 as `"30s"` and a `net.IP` as `"10.0.0.1"` in every source.
 
-To let the user point at a config file with a flag, give `FileFlag` and `FlagSet` the same
-flag set and args. `FileFlag` registers the flag and reads the file before the other sources,
+To let the user point at a config file with a flag, give `DecodeFlag` and `FlagSet` the same
+flag set and args. `DecodeFlag` registers the flag and reads the file before the other sources,
 so the file is loaded even though it was named on the command line:
 
 ```go
@@ -163,7 +158,7 @@ set := flag.NewFlagSet("app", flag.ContinueOnError)
 args := os.Args[1:]
 
 cfg, err := cnfg.Parse(defaults,
-    json.FileFlag[Config](set, "config", args),
+    cnfg.DecodeFlag[Config](json.Unmarshal, set, "config", args),
     cnfg.Env[Config]("APP"),
     cnfg.FlagSet[Config](set, args),
 )

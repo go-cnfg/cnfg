@@ -1,4 +1,4 @@
-MOD_NAMES     := cnfg json toml validator yaml
+MOD_NAMES     := cnfg validator
 MODS_TIDY     := ${MOD_NAMES:%=tidy/%}
 MODS_CHECK    := ${MOD_NAMES:%=tidy-check/%}
 MODS_TEST     := ${MOD_NAMES:%=test/%}

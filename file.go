@@ -12,8 +12,8 @@ import (
 )
 
 // Decode decodes the config file at path with dec on top of the config.
-// The cnfg/json, cnfg/yaml and cnfg/toml modules use it to provide a File parser
-// for their format, and any other decoder works the same way.
+// encoding/json, go.yaml.in/yaml/v3 and github.com/BurntSushi/toml all provide
+// an Unmarshal that can be used as dec, and so does anything with that signature.
 func Decode[T any](dec Decoder, path string) Parser[T] {
 	return func(cfg T) (T, error) {
 		return decodeFile(cfg, dec, path)

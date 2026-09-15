@@ -5,13 +5,13 @@
 // they are given, so the last one wins:
 //
 //	cfg, err := cnfg.Parse(Config{Addr: ":8080"},
-//		json.File[Config]("app.json"),
+//		cnfg.Decode[Config](json.Unmarshal, "app.json"),
 //		cnfg.Env[Config]("APP"),
 //		cnfg.Flags[Config](),
 //	)
 //
-// Config file formats live in modules of their own, github.com/go-cnfg/cnfg/json,
-// /yaml and /toml, so that cnfg itself needs nothing outside the standard library.
+// A config file format is the decoder you pass in, so the format library stays your own
+// dependency and cnfg itself needs nothing outside the standard library.
 package cnfg
 
 import "github.com/go-cnfg/cnfg/strerr"
