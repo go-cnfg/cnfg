@@ -53,9 +53,9 @@ pulled in when you ask for it:
 | Module | Provides | Depends on |
 | --- | --- | --- |
 | `github.com/go-cnfg/cnfg` | `Parse`, `Env`, `Flags`, `Decode` | standard library |
-| `github.com/go-cnfg/cnfg/json` | `json.File`, `json.FileFlag`, `json.Dir` | standard library |
-| `github.com/go-cnfg/cnfg/yaml` | `yaml.File`, `yaml.FileFlag`, `yaml.Dir` | `go.yaml.in/yaml/v3` |
-| `github.com/go-cnfg/cnfg/toml` | `toml.File`, `toml.FileFlag`, `toml.Dir` | `github.com/BurntSushi/toml` |
+| `github.com/go-cnfg/cnfg/json` | `json.File`, `json.FileFlag` | standard library |
+| `github.com/go-cnfg/cnfg/yaml` | `yaml.File`, `yaml.FileFlag` | `go.yaml.in/yaml/v3` |
+| `github.com/go-cnfg/cnfg/toml` | `toml.File`, `toml.FileFlag` | `github.com/BurntSushi/toml` |
 | `github.com/go-cnfg/cnfg/validator` | `validator.Validate` | `github.com/go-playground/validator/v10` |
 
 ```sh
@@ -101,7 +101,6 @@ of your config together with the error when a parser fails.
 | `DecodeFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
 | `Optional(p)` | Wraps a parser so that a missing file is not an error. |
 | `json.File[T](path)`, `yaml.File[T](path)`, `toml.File[T](path)` | Config file in that format. |
-| `json.Dir[T](dir)` and friends | Every `.conf` file in a drop-in directory. |
 | `json.FileFlag[T](set, name, args)` and friends | Config file the user gave with a flag. |
 | `validator.Validate[T]()` | Nothing, it checks the config that the other parsers filled. |
 
@@ -171,14 +170,14 @@ cfg, err := cnfg.Parse(defaults,
 
 ## Drop-in directories
 
-`Dir` reads a whole `conf.d` directory the way the rest of `/etc` does: every `.conf` file in
-it, in lexical order, each one on top of the last. A directory that is not there is a no op,
-so the usual base file plus drop-ins looks like this:
+`DecodeGlob` reads a whole `conf.d` directory the way the rest of `/etc` does: every file the
+pattern matches, in lexical order, each one on top of the last. A directory that is not there
+is a no op, so the usual base file plus drop-ins looks like this:
 
 ```go
 cfg, err := cnfg.Parse(defaults,
     cnfg.Optional(yaml.File[Config]("/etc/app/config.yaml")),
-    yaml.Dir[Config]("/etc/app/config.d"),
+    cnfg.DecodeGlob[Config](yaml.Unmarshal, "/etc/app/config.d/*.conf"),
     cnfg.Env[Config]("APP"),
     cnfg.Flags[Config](),
 )
@@ -191,8 +190,7 @@ cfg, err := cnfg.Parse(defaults,
 ```
 
 Number the files the way sysctl.d and systemd drop-ins do, since the last one to set a field
-wins. `cnfg.DecodeGlob` takes a pattern of your own when `.conf` is not what your files are
-named, for example `/etc/app/config.d/*.yaml`.
+wins. The pattern is yours, so `*.yaml` works as well as the `.conf` that `/etc` uses.
 
 ## Types
 

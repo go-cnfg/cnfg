@@ -22,8 +22,9 @@ func Decode[T any](dec Decoder, path string) Parser[T] {
 
 // DecodeGlob decodes every file matching pattern with dec on top of the config, in the
 // order filepath.Glob returns them, which is lexical. It is the drop-in directory
-// convention of /etc: a file later in the listing wins, and a pattern that matches
-// nothing is a no op, so name the files 10-base.conf, 20-app.conf, 99-local.conf.
+// convention of /etc, as in DecodeGlob[Config](yaml.Unmarshal, "/etc/app/config.d/*.conf"):
+// a file later in the listing wins, and a pattern that matches nothing is a no op,
+// so name the files 10-base.conf, 20-app.conf, 99-local.conf.
 func DecodeGlob[T any](dec Decoder, pattern string) Parser[T] {
 	return func(cfg T) (T, error) {
 		paths, err := filepath.Glob(pattern)
