@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="4" failures="0" errors="0" time="0.000076">
+	<testsuite tests="4" failures="0" time="0.000000" name="github.com/go-cnfg/cnfg/yaml" timestamp="2026-09-15T13:36:22+03:00">
+		<properties>
+			<property name="go.version" value="go1.26.8 linux/amd64"></property>
+		</properties>
+		<testcase classname="github.com/go-cnfg/cnfg/yaml" name="TestFile" time="0.000000"></testcase>
+		<testcase classname="github.com/go-cnfg/cnfg/yaml" name="TestFileFlag" time="0.000000"></testcase>
+		<testcase classname="github.com/go-cnfg/cnfg/yaml" name="TestOptional" time="0.000000"></testcase>
+		<testcase classname="github.com/go-cnfg/cnfg/yaml" name="TestBrokenFile" time="0.000000"></testcase>
+	</testsuite>
+</testsuites>

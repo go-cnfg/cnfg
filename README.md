@@ -34,7 +34,7 @@ func main() {
 
 ## Table of Contents
 
-- [Modules](#modules)
+- [Install](#install)
 - [Parsers](#parsers)
 - [Names](#names)
 - [Tags](#tags)
@@ -44,20 +44,18 @@ func main() {
 - [Validation](#validation)
 - [Flags](#flags)
 
-## Modules
+## Install
 
-The core module reads env vars, flags and config files, and needs nothing outside the standard
-library. A config file format is a decoder you pass in, so the format library is your own
-dependency and cnfg never drags one in:
-
-| Module | Provides | Depends on |
-| --- | --- | --- |
-| `github.com/go-cnfg/cnfg` | `Parse`, `Env`, `Flags`, `Decode` and friends | standard library |
-| `github.com/go-cnfg/cnfg/validator` | `validator.Validate` | `github.com/go-playground/validator/v10` |
+cnfg reads env vars, flags and config files, and needs nothing outside the standard library.
+A config file format is a decoder you pass in, so the format library stays a dependency of
+your own program and cnfg never drags one in.
 
 ```sh
 go get github.com/go-cnfg/cnfg
 ```
+
+Struct tag validation lives in [github.com/go-cnfg/validator](https://github.com/go-cnfg/validator),
+a separate module that wraps go-playground/validator as a parser.
 
 ## Parsers
 
@@ -97,7 +95,6 @@ of your config together with the error when a parser fails.
 | `DecodeDir[T](dec, dir)` | Every `.conf` file of a drop-in directory. |
 | `DecodeFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
 | `Optional(p)` | Wraps a parser so that a missing file is not an error. |
-| `validator.Validate[T]()` | Nothing, it checks the config that the other parsers filled. |
 
 ## Names
 
@@ -217,11 +214,11 @@ func validate(cfg Config) (Config, error) {
 cfg, err := cnfg.Parse(defaults, cnfg.Env[Config]("APP"), cnfg.Flags[Config](), validate)
 ```
 
-Rules that live in struct tags come from the `validator` module, which wraps
-[go-playground/validator](https://github.com/go-playground/validator):
+Rules that live in struct tags come from [github.com/go-cnfg/validator](https://github.com/go-cnfg/validator),
+which wraps [go-playground/validator](https://github.com/go-playground/validator) as a parser:
 
 ```go
-import "github.com/go-cnfg/cnfg/validator"
+import "github.com/go-cnfg/validator"
 
 type Config struct {
     Addr    string        `validate:"required,hostname_port"`
