@@ -13,6 +13,9 @@ on:
 permissions:
   contents: read
 
+env:
+  GOPRIVATE: github.com/go-cnfg/*
+
 jobs:
   discover:
     runs-on: ubuntu-latest

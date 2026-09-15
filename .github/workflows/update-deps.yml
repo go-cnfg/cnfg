@@ -9,6 +9,9 @@ permissions:
   contents: write
   pull-requests: write
 
+env:
+  GOPRIVATE: github.com/go-cnfg/*
+
 jobs:
   update:
     runs-on: ubuntu-latest
