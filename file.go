@@ -12,8 +12,8 @@ import (
 )
 
 // Decode decodes the config file at path with dec on top of the config.
-// The cnfg/json, cnfg/yaml and cnfg/toml modules use it to provide a File parser
-// for their format, and any other decoder works the same way.
+// encoding/json, go.yaml.in/yaml/v3 and github.com/BurntSushi/toml all provide
+// an Unmarshal that can be used as dec, and so does anything with that signature.
 func Decode[T any](dec Decoder, path string) Parser[T] {
 	return func(cfg T) (T, error) {
 		return decodeFile(cfg, dec, path)
@@ -42,6 +42,13 @@ func DecodeGlob[T any](dec Decoder, pattern string) Parser[T] {
 		}
 		return cfg, nil
 	}
+}
+
+// DecodeDir decodes every .conf file in dir with dec on top of the config, which is the
+// drop-in directory convention of /etc. It is DecodeGlob with the usual pattern, so use
+// that one directly when the files are named something else.
+func DecodeDir[T any](dec Decoder, dir string) Parser[T] {
+	return DecodeGlob[T](dec, filepath.Join(dir, "*.conf"))
 }
 
 // Optional turns a missing config file into a no op.

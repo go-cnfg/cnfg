@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="3" failures="0" errors="0" time="0.000181">
+	<testsuite tests="3" failures="0" time="0.000000" name="github.com/go-cnfg/cnfg/validator" timestamp="2026-09-15T13:39:15+03:00">
+		<properties>
+			<property name="go.version" value="go1.26.8 linux/amd64"></property>
+		</properties>
+		<testcase classname="github.com/go-cnfg/cnfg/validator" name="TestValidate" time="0.000000"></testcase>
+		<testcase classname="github.com/go-cnfg/cnfg/validator" name="TestValidateRejects" time="0.000000"></testcase>
+		<testcase classname="github.com/go-cnfg/cnfg/validator" name="TestWith" time="0.000000"></testcase>
+	</testsuite>
+</testsuites>

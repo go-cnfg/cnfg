@@ -9,6 +9,14 @@ You declare your config as a plain struct, fill it with the defaults you want an
 give them, so the last one wins.
 
 ```go
+import (
+    "encoding/json"
+    "log"
+    "time"
+
+    "github.com/go-cnfg/cnfg"
+)
+
 type Config struct {
     Addr    string        `usage:"address to listen on"`
     Timeout time.Duration `usage:"request timeout"`
@@ -20,7 +28,7 @@ func main() {
         Addr:    ":8080",
         Timeout: 5 * time.Second,
     },
-        cnfg.Optional(json.File[Config]("/etc/app/config.json")),
+        cnfg.Optional(cnfg.Decode[Config](json.Unmarshal, "/etc/app/config.json")),
         cnfg.Env[Config]("APP"),
         cnfg.Flags[Config](),
     )
@@ -34,7 +42,7 @@ func main() {
 
 ## Table of Contents
 
-- [Modules](#modules)
+- [Install](#install)
 - [Parsers](#parsers)
 - [Names](#names)
 - [Tags](#tags)
@@ -44,24 +52,18 @@ func main() {
 - [Validation](#validation)
 - [Flags](#flags)
 
-## Modules
-
-The core module reads env vars and flags and needs nothing outside the standard library.
-Config file formats and validation live in modules of their own, so a dependency is only
-pulled in when you ask for it:
-
-| Module | Provides | Depends on |
-| --- | --- | --- |
-| `github.com/go-cnfg/cnfg` | `Parse`, `Env`, `Flags`, `Decode` | standard library |
-| `github.com/go-cnfg/cnfg/json` | `json.File`, `json.FileFlag`, `json.Dir` | standard library |
-| `github.com/go-cnfg/cnfg/yaml` | `yaml.File`, `yaml.FileFlag`, `yaml.Dir` | `go.yaml.in/yaml/v3` |
-| `github.com/go-cnfg/cnfg/toml` | `toml.File`, `toml.FileFlag`, `toml.Dir` | `github.com/BurntSushi/toml` |
-| `github.com/go-cnfg/cnfg/validator` | `validator.Validate` | `github.com/go-playground/validator/v10` |
+## Install
 
 ```sh
 go get github.com/go-cnfg/cnfg
-go get github.com/go-cnfg/cnfg/yaml
 ```
+
+cnfg reads env vars, flags and config files and needs nothing outside the standard library. A
+file format is a decoder you pass in, so the format library stays a dependency of your own
+program and cnfg never drags one in.
+
+Struct tag validation lives in [github.com/go-cnfg/validator](https://github.com/go-cnfg/validator),
+a module of its own that wraps go-playground/validator as a parser.
 
 ## Parsers
 
@@ -71,7 +73,7 @@ A parser is anything that takes a config and gives back a config:
 type Parser[T any] func(T) (T, error)
 ```
 
-`Env`, `Flags` and the file parsers are just parsers that happen to read a source, and your own
+`Env`, `Flags` and the file parsers are parsers that happen to read a source, and your own
 validation or post processing fits in the same chain:
 
 ```go
@@ -98,12 +100,12 @@ of your config together with the error when a parser fails.
 | `FlagSet[T](set, args)` | Command line flags, from your own flag set and args. |
 | `Decode[T](dec, path)` | Config file at path, decoded with dec. |
 | `DecodeGlob[T](dec, pattern)` | Every file matching the glob, in lexical order. |
+| `DecodeDir[T](dec, dir)` | Every `.conf` file of a drop-in directory. |
 | `DecodeFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
 | `Optional(p)` | Wraps a parser so that a missing file is not an error. |
-| `json.File[T](path)`, `yaml.File[T](path)`, `toml.File[T](path)` | Config file in that format. |
-| `json.Dir[T](dir)` and friends | Every `.conf` file of a drop-in directory. |
-| `json.FileFlag[T](set, name, args)` and friends | Config file the user gave with a flag. |
-| `validator.Validate[T]()` | Nothing, it checks the config that the other parsers filled. |
+
+Nothing is magic about the order. Put the sources in the order you want them to win, and put
+your own parsers among them wherever they belong.
 
 ## Names
 
@@ -134,28 +136,31 @@ ignores case, dashes and underscores. `{"server": {"tls-cert": "a.pem"}}` and
 
 ## Config files
 
-Every format is a package of its own, so you import the one you want and get a `File` parser
-for it:
+`Decode` takes the function that decodes the bytes into a `*map[string]any`, which is what
+`encoding/json`, `go.yaml.in/yaml/v3` and `github.com/BurntSushi/toml` all give you, so the
+format is simply the library you already import:
 
 ```go
-import "github.com/go-cnfg/cnfg/yaml"
+import "go.yaml.in/yaml/v3"
 
-cfg, err := cnfg.Parse(defaults, cnfg.Optional(yaml.File[Config]("/etc/app/config.yaml")))
+cfg, err := cnfg.Parse(defaults, cnfg.Optional(cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml")))
 ```
 
 `Optional` turns a missing file into a no op, without it a missing file is an error wrapping
-`fs.ErrNotExist`. Any other format works the same way with `cnfg.Decode`, which takes the
-function that decodes the bytes into a `*map[string]any`:
+`fs.ErrNotExist`. Anything with that signature works, so a format cnfg has never heard of
+needs no support from cnfg:
 
 ```go
 cfg, err := cnfg.Parse(defaults, cnfg.Decode[Config](hcl.Unmarshal, "/etc/app/config.hcl"))
 ```
 
 Values from files go through the same parsing as env vars and flags, so a duration is written
-as `"30s"` and a `net.IP` as `"10.0.0.1"` in every source.
+as `"30s"` and a `net.IP` as `"10.0.0.1"` in every source. A file that fails to decode stops
+the parse with an error wrapping `ErrDecodeFile`, and one that cannot be read wraps
+`ErrReadFile`.
 
-To let the user point at a config file with a flag, give `FileFlag` and `FlagSet` the same
-flag set and args. `FileFlag` registers the flag and reads the file before the other sources,
+To let the user point at a config file with a flag, give `DecodeFlag` and `FlagSet` the same
+flag set and args. `DecodeFlag` registers the flag and reads the file before the other sources,
 so the file is loaded even though it was named on the command line:
 
 ```go
@@ -163,7 +168,7 @@ set := flag.NewFlagSet("app", flag.ContinueOnError)
 args := os.Args[1:]
 
 cfg, err := cnfg.Parse(defaults,
-    json.FileFlag[Config](set, "config", args),
+    cnfg.DecodeFlag[Config](json.Unmarshal, set, "config", args),
     cnfg.Env[Config]("APP"),
     cnfg.FlagSet[Config](set, args),
 )
@@ -171,14 +176,16 @@ cfg, err := cnfg.Parse(defaults,
 
 ## Drop-in directories
 
-`Dir` reads a whole `conf.d` directory the way the rest of `/etc` does: every `.conf` file in
-it, in lexical order, each one on top of the last. A directory that is not there is a no op,
-so the usual base file plus drop-ins looks like this:
+`DecodeDir` reads a whole `conf.d` directory the way the rest of `/etc` does: every `.conf`
+file in it, in lexical order, each one on top of the last. A directory that is not there is a
+no op, so the usual base file plus drop-ins looks like this:
 
 ```go
+import "go.yaml.in/yaml/v3"
+
 cfg, err := cnfg.Parse(defaults,
-    cnfg.Optional(yaml.File[Config]("/etc/app/config.yaml")),
-    yaml.Dir[Config]("/etc/app/config.d"),
+    cnfg.Optional(cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml")),
+    cnfg.DecodeDir[Config](yaml.Unmarshal, "/etc/app/config.d"),
     cnfg.Env[Config]("APP"),
     cnfg.Flags[Config](),
 )
@@ -191,8 +198,8 @@ cfg, err := cnfg.Parse(defaults,
 ```
 
 Number the files the way sysctl.d and systemd drop-ins do, since the last one to set a field
-wins. `cnfg.DecodeGlob` takes a pattern of your own when the files are not named `.conf`, for
-example `cnfg.DecodeGlob[Config](yaml.Unmarshal, "/etc/app/config.d/*.yaml")`.
+wins. `DecodeDir` is `DecodeGlob` with the usual `*.conf` pattern, so reach for `DecodeGlob`
+when the files are named something else, `cnfg.DecodeGlob[Config](yaml.Unmarshal, "/etc/app/config.d/*.yaml")`.
 
 ## Types
 
@@ -202,7 +209,7 @@ like `net.IP` and `time.Time`. Slices of those are comma separated on the comman
 env vars, `-hosts a,b,c`.
 
 Maps and slices of structs can only be filled from a config file since there is no sane way to
-express them as a flag. They are simply skipped by the flag and env sources.
+express them as a flag. They are skipped by the flag and env sources.
 
 ## Validation
 
@@ -220,11 +227,11 @@ func validate(cfg Config) (Config, error) {
 cfg, err := cnfg.Parse(defaults, cnfg.Env[Config]("APP"), cnfg.Flags[Config](), validate)
 ```
 
-Rules that live in struct tags come from the `validator` module, which wraps
-[go-playground/validator](https://github.com/go-playground/validator):
+Rules that live in struct tags come from [github.com/go-cnfg/validator](https://github.com/go-cnfg/validator),
+which wraps [go-playground/validator](https://github.com/go-playground/validator) as a parser:
 
 ```go
-import "github.com/go-cnfg/cnfg/validator"
+import "github.com/go-cnfg/validator"
 
 type Config struct {
     Addr    string        `validate:"required,hostname_port"`

@@ -17,62 +17,27 @@ env:
   GOPRIVATE: github.com/go-cnfg/*
 
 jobs:
-  discover:
+  changed:
     runs-on: ubuntu-latest
     outputs:
-      mods: ${{ steps.list.outputs.mods }}
-      changed: ${{ steps.changed.outputs.mods }}
+      has_changes: ${{ steps.check.outputs.has_changes }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           fetch-tags: true
 
-      - id: list
+      - id: check
         run: |
-          mods=(cnfg)
-          for d in */; do
-            d=${d%/}
-            if [ "$d" != "internal" ] && [ -f "$d/go.mod" ]; then
-              mods+=("$d")
-            fi
-          done
-          echo "mods=$(printf '%s\n' "${mods[@]}" | jq -R . | jq -s -c .)" >> "$GITHUB_OUTPUT"
-
-      - id: changed
-        run: |
-          changed=()
-          for m in $(echo '${{ steps.list.outputs.mods }}' | jq -r '.[]'); do
-            if [ "$m" = "cnfg" ]; then
-              last=$(git tag --list 'v*' | grep -E '^v[0-9]' | sort -V | tail -1)
-              paths=(. ':!internal' ':!.github')
-              for d in */; do
-                d=${d%/}
-                if [ -f "$d/go.mod" ]; then
-                  paths+=(":!$d")
-                fi
-              done
-            else
-              last=$(git tag --list "$m/v*" | grep -E "^$m/v[0-9]" | sort -V | tail -1)
-              paths=("$m/")
-            fi
-            if [ -z "$last" ] || ! git diff --quiet "$last"..HEAD -- "${paths[@]}"; then
-              changed+=("$m")
-            fi
-          done
-          if [ ${#changed[@]} -eq 0 ]; then
-            echo "mods=[]" >> "$GITHUB_OUTPUT"
+          last=$(git tag --list 'v*' | grep -E '^v[0-9]' | sort -V | tail -1)
+          if [ -z "$last" ] || ! git diff --quiet "$last"..HEAD; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
           else
-            echo "mods=$(printf '%s\n' "${changed[@]}" | jq -R . | jq -s -c .)" >> "$GITHUB_OUTPUT"
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
           fi
 
-  test:
-    needs: discover
+  build:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        mod: ${{ fromJSON(needs.discover.outputs.mods) }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -85,45 +50,38 @@ jobs:
           cache-dependency-path: "**/go.sum"
 
       - name: Tidy check
-        run: make tidy-check/${{ matrix.mod }}
+        run: make tidy-check
 
       - name: Lint
-        run: make lint/${{ matrix.mod }}
+        run: make lint
 
       - name: API check
-        run: make api-check/${{ matrix.mod }}
+        run: make api-check
 
       - name: Test
-        run: make test/${{ matrix.mod }}
+        run: make test
 
-      - name: Upload coverage
+      - name: Upload results to Codecov
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./.output/coverage/${{ matrix.mod }}.txt
-          flags: ${{ matrix.mod }}
+          files: ./coverage.txt
 
-      - name: Upload test results
+      - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
         uses: codecov/test-results-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./.output/junit/${{ matrix.mod }}.xml
-          flags: ${{ matrix.mod }}
+          files: ./junit.xml
 
   tag:
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.discover.outputs.changed != '[]' }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changed.outputs.has_changes == 'true' }}
     needs:
-      - discover
-      - test
+      - changed
+      - build
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      max-parallel: 1
-      matrix:
-        mod: ${{ fromJSON(needs.discover.outputs.changed) }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -135,44 +93,28 @@ jobs:
           go-version-file: ./internal/tools/go.mod
           cache-dependency-path: "**/go.sum"
 
-      - name: Tag
-        run: make tag/${{ matrix.mod }}
-
-      - id: name
-        name: Resolve tag name
-        run: |
-          prefix=""
-          if [ "${{ matrix.mod }}" != "cnfg" ]; then
-            prefix="${{ matrix.mod }}/"
-          fi
-          echo "name=$(git tag --points-at HEAD --list "$prefix"'v*' | grep -E "^$prefix"'v[0-9]' | head -1)" >> "$GITHUB_OUTPUT"
+      - id: tag
+        name: Tag
+        run: echo "name=$(make tag)" >> "$GITHUB_OUTPUT"
 
       - name: Push tag
-        run: |
-          tag="${{ steps.name.outputs.name }}"
-          if [ -n "$tag" ] && ! git ls-remote --exit-code origin "refs/tags/$tag" >/dev/null 2>&1; then
-            git push origin "$tag"
-          fi
+        run: git ls-remote --exit-code origin "refs/tags/${{ steps.tag.outputs.name }}" >/dev/null 2>&1 || git push origin "${{ steps.tag.outputs.name }}"
 
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          tag="${{ steps.name.outputs.name }}"
-          if [ -n "$tag" ]; then
-            gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --generate-notes
-          fi
+        run: gh release view "${{ steps.tag.outputs.name }}" >/dev/null 2>&1 || gh release create "${{ steps.tag.outputs.name }}" --generate-notes
 
   ci:
     needs:
-      - discover
-      - test
+      - changed
+      - build
       - tag
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Verify
         run: |
-          [ "${{ needs.discover.result }}" = "success" ] || exit 1
-          case "${{ needs.test.result }}" in success|skipped) ;; *) exit 1 ;; esac
-          case "${{ needs.tag.result }}"  in success|skipped) ;; *) exit 1 ;; esac
+          [ "${{ needs.changed.result }}" = "success" ] || exit 1
+          case "${{ needs.build.result }}" in success|skipped) ;; *) exit 1 ;; esac
+          case "${{ needs.tag.result }}"   in success|skipped) ;; *) exit 1 ;; esac

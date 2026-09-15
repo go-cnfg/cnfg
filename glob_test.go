@@ -92,3 +92,28 @@ func TestDecodeGlobBadPattern(t *testing.T) {
 		t.Errorf("got %v, want ErrReadFile", err)
 	}
 }
+
+func TestDecodeDir(t *testing.T) {
+	dir := writeDir(t, map[string]string{
+		"10-base.conf":  `{"addr": ":1111", "timeout": "90s"}`,
+		"20-local.conf": `{"addr": ":2222"}`,
+		"notes.txt":     `{"addr": ":7777"}`,
+	})
+
+	cfg, err := cnfg.Parse(defaults(), cnfg.DecodeDir[Config](json.Unmarshal, dir))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertEqual(t, "last file wins", ":2222", cfg.Addr)
+	assertEqual(t, "earlier file", 90*time.Second, cfg.Timeout)
+	assertEqual(t, "other extension skipped", 4, cfg.Workers)
+}
+
+func TestDecodeDirMissing(t *testing.T) {
+	cfg, err := cnfg.Parse(defaults(), cnfg.DecodeDir[Config](json.Unmarshal, filepath.Join(t.TempDir(), "conf.d")))
+	if err != nil {
+		t.Fatalf("missing dir should be a no op: %v", err)
+	}
+	assertEqual(t, "defaults kept", ":8080", cfg.Addr)
+}
