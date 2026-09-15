@@ -61,18 +61,21 @@ jobs:
       - name: Test
         run: make test
 
-      - name: Upload results to Codecov
-        uses: codecov/codecov-action@v4
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.txt
+          fail_ci_if_error: true
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./junit.xml
+          report_type: test_results
+          fail_ci_if_error: true
 
   tag:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changed.outputs.has_changes == 'true' }}
