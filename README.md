@@ -39,6 +39,7 @@ func main() {
 - [Names](#names)
 - [Tags](#tags)
 - [Config files](#config-files)
+- [Drop-in directories](#drop-in-directories)
 - [Types](#types)
 - [Validation](#validation)
 - [Flags](#flags)
@@ -96,6 +97,7 @@ of your config together with the error when a parser fails.
 | `Flags[T]()` | Command line flags, from `os.Args[1:]`. |
 | `FlagSet[T](set, args)` | Command line flags, from your own flag set and args. |
 | `Decode[T](dec, path)` | Config file at path, decoded with dec. |
+| `DecodeGlob[T](dec, pattern)` | Every file matching the glob, in lexical order. |
 | `DecodeFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
 | `Optional(p)` | Wraps a parser so that a missing file is not an error. |
 | `json.File[T](path)`, `yaml.File[T](path)`, `toml.File[T](path)` | Config file in that format. |
@@ -165,6 +167,30 @@ cfg, err := cnfg.Parse(defaults,
     cnfg.FlagSet[Config](set, args),
 )
 ```
+
+## Drop-in directories
+
+`DecodeGlob` reads a whole `conf.d` directory the way the rest of `/etc` does: every file the
+pattern matches, in lexical order, each one on top of the last. A directory that is not there
+is a no op, so the usual base file plus drop-ins looks like this:
+
+```go
+cfg, err := cnfg.Parse(defaults,
+    cnfg.Optional(yaml.File[Config]("/etc/app/config.yaml")),
+    cnfg.DecodeGlob[Config](yaml.Unmarshal, "/etc/app/config.d/*.conf"),
+    cnfg.Env[Config]("APP"),
+    cnfg.Flags[Config](),
+)
+```
+
+```
+/etc/app/config.d/10-base.conf
+/etc/app/config.d/50-limits.conf
+/etc/app/config.d/99-local.conf
+```
+
+Number the files the way sysctl.d and systemd drop-ins do, since the last one to set a field
+wins. The pattern is yours, so `*.yaml` works as well as the `.conf` that `/etc` uses.
 
 ## Types
 

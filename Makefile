@@ -19,7 +19,7 @@ GO_VERSION    ?= $(shell go env GOVERSION | sed 's/^go//')
 
 mod_dir        = $(if $(filter cnfg,$(1)),.,$(1))
 mod_prefix     = $(if $(filter cnfg,$(1)),,$(1)/)
-mod_last_tag   = $(shell git ls-remote --tags --refs ${REMOTE} 'refs/tags/$(call mod_prefix,$(1))v*' | sed 's|.*refs/tags/||' | sort -V | tail -1)
+mod_last_tag   = $(shell git ls-remote --tags --refs ${REMOTE} 'refs/tags/$(call mod_prefix,$(1))v*' | sed 's|.*refs/tags/||' | grep -E '^$(call mod_prefix,$(1))v[0-9]' | sort -V | tail -1)
 
 .PHONY: all
 all: clean tidy-check .WAIT lint test

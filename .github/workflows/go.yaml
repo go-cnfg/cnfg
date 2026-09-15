@@ -41,7 +41,7 @@ jobs:
           changed=()
           for m in $(echo '${{ steps.list.outputs.mods }}' | jq -r '.[]'); do
             if [ "$m" = "cnfg" ]; then
-              last=$(git tag --list 'v*' | sort -V | tail -1)
+              last=$(git tag --list 'v*' | grep -E '^v[0-9]' | sort -V | tail -1)
               paths=(. ':!internal' ':!.github')
               for d in */; do
                 d=${d%/}
@@ -50,7 +50,7 @@ jobs:
                 fi
               done
             else
-              last=$(git tag --list "$m/v*" | sort -V | tail -1)
+              last=$(git tag --list "$m/v*" | grep -E "^$m/v[0-9]" | sort -V | tail -1)
               paths=("$m/")
             fi
             if [ -z "$last" ] || ! git diff --quiet "$last"..HEAD -- "${paths[@]}"; then
@@ -142,7 +142,7 @@ jobs:
           if [ "${{ matrix.mod }}" != "cnfg" ]; then
             prefix="${{ matrix.mod }}/"
           fi
-          echo "name=$(git tag --points-at HEAD --list "$prefix"'v*' | head -1)" >> "$GITHUB_OUTPUT"
+          echo "name=$(git tag --points-at HEAD --list "$prefix"'v*' | grep -E "^$prefix"'v[0-9]' | head -1)" >> "$GITHUB_OUTPUT"
 
       - name: Push tag
         run: |

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/go-cnfg/cnfg"
@@ -103,4 +104,22 @@ func ExampleParser_validation() {
 	// Output:
 	// workers must be at least 1, got 0
 	// 8 <nil>
+}
+
+func ExampleDecodeGlob() {
+	dir, _ := os.MkdirTemp("", "conf.d")
+	defer func() { _ = os.RemoveAll(dir) }()
+
+	for name, content := range map[string]string{
+		"10-base.conf":  `{"addr": ":1111", "timeout": "1m"}`,
+		"99-local.conf": `{"addr": ":9999"}`,
+	} {
+		_ = os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600)
+	}
+
+	cfg, err := cnfg.Parse(AppConfig{Addr: ":8080"},
+		cnfg.DecodeGlob[AppConfig](json.Unmarshal, filepath.Join(dir, "*.conf")),
+	)
+	fmt.Printf("%+v %v\n", cfg, err)
+	// Output: {Addr::9999 Timeout:1m0s Debug:false} <nil>
 }
