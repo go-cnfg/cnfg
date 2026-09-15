@@ -1,6 +1,7 @@
 package cnfg_test
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -22,7 +23,7 @@ func ExampleParse() {
 	}
 
 	cfg, err := cnfg.Parse(defaults,
-		cnfg.Optional(cnfg.File[AppConfig]("app.json")),
+		cnfg.Optional(cnfg.Decode[AppConfig](json.Unmarshal, "app.json")),
 		cnfg.EnvFrom[AppConfig]("APP", []string{"APP_TIMEOUT=1m"}),
 		flags[AppConfig]("-debug"),
 	)
@@ -57,7 +58,7 @@ func ExampleFlagSet() {
 	args := []string{"-h"}
 
 	_, _ = cnfg.Parse(AppConfig{Addr: ":8080", Timeout: 5 * time.Second},
-		cnfg.FileFlag[AppConfig](set, "config", args),
+		cnfg.DecodeFlag[AppConfig](json.Unmarshal, set, "config", args),
 		cnfg.FlagSet[AppConfig](set, args),
 	)
 

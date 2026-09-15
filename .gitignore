@@ -1,2 +1,4 @@
-coverage.txt
-junit.xml
+/.output/
+/.bin/
+go.work
+go.work.sum

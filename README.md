@@ -20,7 +20,7 @@ func main() {
         Addr:    ":8080",
         Timeout: 5 * time.Second,
     },
-        cnfg.Optional(cnfg.File[Config]("/etc/app/config.json")),
+        cnfg.Optional(json.File[Config]("/etc/app/config.json")),
         cnfg.Env[Config]("APP"),
         cnfg.Flags[Config](),
     )
@@ -34,6 +34,7 @@ func main() {
 
 ## Table of Contents
 
+- [Modules](#modules)
 - [Parsers](#parsers)
 - [Names](#names)
 - [Tags](#tags)
@@ -41,6 +42,25 @@ func main() {
 - [Types](#types)
 - [Validation](#validation)
 - [Flags](#flags)
+
+## Modules
+
+The core module reads env vars and flags and needs nothing outside the standard library.
+Config file formats and validation live in modules of their own, so a dependency is only
+pulled in when you ask for it:
+
+| Module | Provides | Depends on |
+| --- | --- | --- |
+| `github.com/go-cnfg/cnfg` | `Parse`, `Env`, `Flags`, `Decode` | standard library |
+| `github.com/go-cnfg/cnfg/json` | `json.File`, `json.FileFlag` | standard library |
+| `github.com/go-cnfg/cnfg/yaml` | `yaml.File`, `yaml.FileFlag` | `go.yaml.in/yaml/v3` |
+| `github.com/go-cnfg/cnfg/toml` | `toml.File`, `toml.FileFlag` | `github.com/BurntSushi/toml` |
+| `github.com/go-cnfg/cnfg/validator` | `validator.Validate` | `github.com/go-playground/validator/v10` |
+
+```sh
+go get github.com/go-cnfg/cnfg
+go get github.com/go-cnfg/cnfg/yaml
+```
 
 ## Parsers
 
@@ -50,7 +70,7 @@ A parser is anything that takes a config and gives back a config:
 type Parser[T any] func(T) (T, error)
 ```
 
-`File`, `Env` and `Flags` are just parsers that happen to read a source, and your own
+`Env`, `Flags` and the file parsers are just parsers that happen to read a source, and your own
 validation or post processing fits in the same chain:
 
 ```go
@@ -71,13 +91,16 @@ of your config together with the error when a parser fails.
 
 | Parser | Reads |
 | --- | --- |
-| `File[T](path)` | Config file at path, decoder picked by extension. |
-| `Optional(p)` | Wraps a parser so that a missing file is not an error. |
-| `FileFlag[T](set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
 | `Env[T](prefix)` | Environment variables, from `os.Environ()`. |
 | `EnvFrom[T](prefix, environ)` | Environment variables, from the given `KEY=VALUE` list. |
 | `Flags[T]()` | Command line flags, from `os.Args[1:]`. |
 | `FlagSet[T](set, args)` | Command line flags, from your own flag set and args. |
+| `Decode[T](dec, path)` | Config file at path, decoded with dec. |
+| `DecodeFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
+| `Optional(p)` | Wraps a parser so that a missing file is not an error. |
+| `json.File[T](path)`, `yaml.File[T](path)`, `toml.File[T](path)` | Config file in that format. |
+| `json.FileFlag[T](set, name, args)` and friends | Config file the user gave with a flag. |
+| `validator.Validate[T]()` | Nothing, it checks the config that the other parsers filled. |
 
 ## Names
 
@@ -108,14 +131,21 @@ ignores case, dashes and underscores. `{"server": {"tls-cert": "a.pem"}}` and
 
 ## Config files
 
-JSON is understood out of the box and any other format can be plugged in by adding a decoder.
-A decoder is any function that decodes bytes into a `*map[string]any`, which `encoding/json`,
-`gopkg.in/yaml.v3` and `github.com/BurntSushi/toml` all are.
+Every format is a package of its own, so you import the one you want and get a `File` parser
+for it:
 
 ```go
-cnfg.Decoders[".yaml"] = yaml.Unmarshal
+import "github.com/go-cnfg/cnfg/yaml"
 
-cfg, err := cnfg.Parse(defaults, cnfg.Optional(cnfg.File[Config]("/etc/app/config.yaml")))
+cfg, err := cnfg.Parse(defaults, cnfg.Optional(yaml.File[Config]("/etc/app/config.yaml")))
+```
+
+`Optional` turns a missing file into a no op, without it a missing file is an error wrapping
+`fs.ErrNotExist`. Any other format works the same way with `cnfg.Decode`, which takes the
+function that decodes the bytes into a `*map[string]any`:
+
+```go
+cfg, err := cnfg.Parse(defaults, cnfg.Decode[Config](hcl.Unmarshal, "/etc/app/config.hcl"))
 ```
 
 Values from files go through the same parsing as env vars and flags, so a duration is written
@@ -130,7 +160,7 @@ set := flag.NewFlagSet("app", flag.ContinueOnError)
 args := os.Args[1:]
 
 cfg, err := cnfg.Parse(defaults,
-    cnfg.FileFlag[Config](set, "config", args),
+    json.FileFlag[Config](set, "config", args),
     cnfg.Env[Config]("APP"),
     cnfg.FlagSet[Config](set, args),
 )
@@ -162,10 +192,12 @@ func validate(cfg Config) (Config, error) {
 cfg, err := cnfg.Parse(defaults, cnfg.Env[Config]("APP"), cnfg.Flags[Config](), validate)
 ```
 
-A validator that reads struct tags, like [go-playground/validator](https://github.com/go-playground/validator),
-bolts on the same way and keeps the rules next to the fields:
+Rules that live in struct tags come from the `validator` module, which wraps
+[go-playground/validator](https://github.com/go-playground/validator):
 
 ```go
+import "github.com/go-cnfg/cnfg/validator"
+
 type Config struct {
     Addr    string        `validate:"required,hostname_port"`
     Workers int           `validate:"gte=1,lte=100"`
@@ -173,15 +205,16 @@ type Config struct {
     Timeout time.Duration `validate:"min=1s"`
 }
 
-var v = validator.New()
-
-func validate(cfg Config) (Config, error) { return cfg, v.Struct(cfg) }
-
-cfg, err := cnfg.Parse(defaults, cnfg.Env[Config]("APP"), cnfg.Flags[Config](), validate)
+cfg, err := cnfg.Parse(defaults,
+    cnfg.Env[Config]("APP"),
+    cnfg.Flags[Config](),
+    validator.Validate[Config](),
+)
 ```
 
-Put it last so every source has been read, and remember that the parse stops there: `Parse`
-returns the zero value of your config together with the error.
+`validator.With[Config](v)` takes a validator you set up yourself, for your own rules or a
+different tag name. Put the check last so every source has been read, and remember that the
+parse stops there: `Parse` returns the zero value of your config together with the error.
 
 ## Flags
 

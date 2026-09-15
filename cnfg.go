@@ -5,17 +5,16 @@
 // they are given, so the last one wins:
 //
 //	cfg, err := cnfg.Parse(Config{Addr: ":8080"},
-//		cnfg.File[Config]("app.json"),
+//		json.File[Config]("app.json"),
 //		cnfg.Env[Config]("APP"),
 //		cnfg.Flags[Config](),
 //	)
+//
+// Config file formats live in modules of their own, github.com/go-cnfg/cnfg/json,
+// /yaml and /toml, so that cnfg itself needs nothing outside the standard library.
 package cnfg
 
-import (
-	"encoding/json"
-
-	"github.com/go-cnfg/cnfg/strerr"
-)
+import "github.com/go-cnfg/cnfg/strerr"
 
 const (
 	// NameTag overrides the name that is generated from the field name,
@@ -28,7 +27,6 @@ const (
 const (
 	ErrNotStruct       = strerr.Error("config must be a struct")
 	ErrDuplicateName   = strerr.Error("duplicate field name")
-	ErrUnknownFormat   = strerr.Error("unknown config file format")
 	ErrReadFile        = strerr.Error("failed to read config file")
 	ErrDecodeFile      = strerr.Error("failed to decode config file")
 	ErrInvalidValue    = strerr.Error("invalid value")
@@ -37,18 +35,12 @@ const (
 )
 
 // Decoder decodes config file contents into a *map[string]any, which is then applied
-// on top of the config struct. encoding/json, gopkg.in/yaml.v3 and github.com/BurntSushi/toml
+// on top of the config struct. encoding/json, go.yaml.in/yaml/v3 and github.com/BurntSushi/toml
 // all satisfy it.
 type Decoder func(data []byte, v any) error
 
-// Decoders holds the decoder used for each config file extension.
-// Add your own to support more formats:
-//
-//	cnfg.Decoders[".yaml"] = yaml.Unmarshal
-var Decoders = map[string]Decoder{".json": json.Unmarshal}
-
 // Parser reads one config source on top of the config it is given.
-// File, Env, Flags and friends return one, and anything that fills or validates
+// Env, Flags and friends return one, and anything that fills or validates
 // a config can be used as one.
 type Parser[T any] func(T) (T, error)
 
