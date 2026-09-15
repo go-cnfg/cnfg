@@ -9,6 +9,14 @@ You declare your config as a plain struct, fill it with the defaults you want an
 give them, so the last one wins.
 
 ```go
+import (
+    "encoding/json"
+    "log"
+    "time"
+
+    "github.com/go-cnfg/cnfg"
+)
+
 type Config struct {
     Addr    string        `usage:"address to listen on"`
     Timeout time.Duration `usage:"request timeout"`
@@ -46,16 +54,16 @@ func main() {
 
 ## Install
 
-cnfg reads env vars, flags and config files, and needs nothing outside the standard library.
-A config file format is a decoder you pass in, so the format library stays a dependency of
-your own program and cnfg never drags one in.
-
 ```sh
 go get github.com/go-cnfg/cnfg
 ```
 
+cnfg reads env vars, flags and config files and needs nothing outside the standard library. A
+file format is a decoder you pass in, so the format library stays a dependency of your own
+program and cnfg never drags one in.
+
 Struct tag validation lives in [github.com/go-cnfg/validator](https://github.com/go-cnfg/validator),
-a separate module that wraps go-playground/validator as a parser.
+a module of its own that wraps go-playground/validator as a parser.
 
 ## Parsers
 
@@ -65,7 +73,7 @@ A parser is anything that takes a config and gives back a config:
 type Parser[T any] func(T) (T, error)
 ```
 
-`Env`, `Flags` and the file parsers are just parsers that happen to read a source, and your own
+`Env`, `Flags` and the file parsers are parsers that happen to read a source, and your own
 validation or post processing fits in the same chain:
 
 ```go
@@ -95,6 +103,9 @@ of your config together with the error when a parser fails.
 | `DecodeDir[T](dec, dir)` | Every `.conf` file of a drop-in directory. |
 | `DecodeFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
 | `Optional(p)` | Wraps a parser so that a missing file is not an error. |
+
+Nothing is magic about the order. Put the sources in the order you want them to win, and put
+your own parsers among them wherever they belong.
 
 ## Names
 
@@ -144,7 +155,9 @@ cfg, err := cnfg.Parse(defaults, cnfg.Decode[Config](hcl.Unmarshal, "/etc/app/co
 ```
 
 Values from files go through the same parsing as env vars and flags, so a duration is written
-as `"30s"` and a `net.IP` as `"10.0.0.1"` in every source.
+as `"30s"` and a `net.IP` as `"10.0.0.1"` in every source. A file that fails to decode stops
+the parse with an error wrapping `ErrDecodeFile`, and one that cannot be read wraps
+`ErrReadFile`.
 
 To let the user point at a config file with a flag, give `DecodeFlag` and `FlagSet` the same
 flag set and args. `DecodeFlag` registers the flag and reads the file before the other sources,
@@ -196,7 +209,7 @@ like `net.IP` and `time.Time`. Slices of those are comma separated on the comman
 env vars, `-hosts a,b,c`.
 
 Maps and slices of structs can only be filled from a config file since there is no sane way to
-express them as a flag. They are simply skipped by the flag and env sources.
+express them as a flag. They are skipped by the flag and env sources.
 
 ## Validation
 
