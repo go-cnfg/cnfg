@@ -44,6 +44,13 @@ func DecodeGlob[T any](dec Decoder, pattern string) Parser[T] {
 	}
 }
 
+// DecodeDir decodes every .conf file in dir with dec on top of the config, which is the
+// drop-in directory convention of /etc. It is DecodeGlob with the usual pattern, so use
+// that one directly when the files are named something else.
+func DecodeDir[T any](dec Decoder, dir string) Parser[T] {
+	return DecodeGlob[T](dec, filepath.Join(dir, "*.conf"))
+}
+
 // Optional turns a missing config file into a no op.
 func Optional[T any](p Parser[T]) Parser[T] {
 	return func(cfg T) (T, error) {
