@@ -1,11 +1,11 @@
-// Package yaml reads YAML config files with gopkg.in/yaml.v3.
+// Package yaml reads YAML config files with go.yaml.in/yaml/v3.
 package yaml
 
 import (
 	"flag"
 
 	"github.com/go-cnfg/cnfg"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // File decodes the YAML config file at path on top of the config.

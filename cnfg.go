@@ -35,7 +35,7 @@ const (
 )
 
 // Decoder decodes config file contents into a *map[string]any, which is then applied
-// on top of the config struct. encoding/json, gopkg.in/yaml.v3 and github.com/BurntSushi/toml
+// on top of the config struct. encoding/json, go.yaml.in/yaml/v3 and github.com/BurntSushi/toml
 // all satisfy it.
 type Decoder func(data []byte, v any) error
 

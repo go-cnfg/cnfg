@@ -53,7 +53,7 @@ pulled in when you ask for it:
 | --- | --- | --- |
 | `github.com/go-cnfg/cnfg` | `Parse`, `Env`, `Flags`, `Decode` | standard library |
 | `github.com/go-cnfg/cnfg/json` | `json.File`, `json.FileFlag` | standard library |
-| `github.com/go-cnfg/cnfg/yaml` | `yaml.File`, `yaml.FileFlag` | `gopkg.in/yaml.v3` |
+| `github.com/go-cnfg/cnfg/yaml` | `yaml.File`, `yaml.FileFlag` | `go.yaml.in/yaml/v3` |
 | `github.com/go-cnfg/cnfg/toml` | `toml.File`, `toml.FileFlag` | `github.com/BurntSushi/toml` |
 | `github.com/go-cnfg/cnfg/validator` | `validator.Validate` | `github.com/go-playground/validator/v10` |
 
