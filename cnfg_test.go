@@ -94,7 +94,7 @@ func TestPrecedence(t *testing.T) {
 	}`)
 
 	cfg, err := cnfg.Parse(defaults(),
-		cnfg.Decode[Config](json.Unmarshal, file),
+		cnfg.File[Config](json.Unmarshal, file),
 		env[Config]("ADDR=:2222", "WORKER_COUNT=2", "TIMEOUT=2m"),
 		flags[Config]("-addr", ":3333"),
 	)
@@ -159,7 +159,7 @@ func TestFile(t *testing.T) {
 		"limits": {"rps": 5}
 	}`)
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.Decode[Config](json.Unmarshal, file))
+	cfg, err := cnfg.Parse(defaults(), cnfg.File[Config](json.Unmarshal, file))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -262,7 +262,7 @@ func TestFileFlag(t *testing.T) {
 	set.SetOutput(io.Discard)
 
 	cfg, err := cnfg.Parse(defaults(),
-		cnfg.DecodeFlag[Config](json.Unmarshal, set, "config", args),
+		cnfg.FileFlag[Config](json.Unmarshal, set, "config", args),
 		cnfg.FlagSet[Config](set, args),
 	)
 	if err != nil {
@@ -281,7 +281,7 @@ func TestFileFlagMissing(t *testing.T) {
 	set.SetOutput(io.Discard)
 
 	cfg, err := cnfg.Parse(defaults(),
-		cnfg.DecodeFlag[Config](json.Unmarshal, set, "config", args),
+		cnfg.FileFlag[Config](json.Unmarshal, set, "config", args),
 		cnfg.FlagSet[Config](set, args),
 	)
 	if err != nil {
@@ -293,7 +293,7 @@ func TestFileFlagMissing(t *testing.T) {
 func TestMissingFileIsSkipped(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "missing.json")
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.Decode[Config](json.Unmarshal, missing))
+	cfg, err := cnfg.Parse(defaults(), cnfg.File[Config](json.Unmarshal, missing))
 	if err != nil {
 		t.Fatalf("a file that is not there should be a no op: %v", err)
 	}
@@ -309,7 +309,7 @@ func TestUnreadableFileIsAnError(t *testing.T) {
 		t.Skip("root reads it anyway")
 	}
 
-	_, err := cnfg.Parse(defaults(), cnfg.Decode[Config](json.Unmarshal, path))
+	_, err := cnfg.Parse(defaults(), cnfg.File[Config](json.Unmarshal, path))
 	if !errors.Is(err, cnfg.ErrReadFile) {
 		t.Errorf("got %v, want ErrReadFile", err)
 	}
@@ -327,7 +327,7 @@ func TestCustomDecoder(t *testing.T) {
 		(*tree)[key] = val
 		return nil
 	}
-	cfg, err := cnfg.Parse(defaults(), cnfg.Decode[Config](decode, file))
+	cfg, err := cnfg.Parse(defaults(), cnfg.File[Config](decode, file))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -362,7 +362,7 @@ func TestErrors(t *testing.T) {
 		},
 		{
 			name:   "broken file",
-			parser: cnfg.Decode[Config](json.Unmarshal, writeFile(t, "config.json", "{")),
+			parser: cnfg.File[Config](json.Unmarshal, writeFile(t, "config.json", "{")),
 			want:   cnfg.ErrDecodeFile,
 		},
 	}
@@ -389,7 +389,7 @@ func TestNotStruct(t *testing.T) {
 	}
 
 	file := writeFile(t, "config.json", "{}")
-	if _, err := cnfg.Parse(42, cnfg.Decode[int](json.Unmarshal, file)); !errors.Is(err, cnfg.ErrNotStruct) {
+	if _, err := cnfg.Parse(42, cnfg.File[int](json.Unmarshal, file)); !errors.Is(err, cnfg.ErrNotStruct) {
 		t.Errorf("file: got %v, want ErrNotStruct", err)
 	}
 }
@@ -418,7 +418,7 @@ func TestEmbedded(t *testing.T) {
 	file := writeFile(t, "config.json", `{"log-level": "warn", "name": "from-file"}`)
 
 	cfg, err := cnfg.Parse(Service{},
-		cnfg.Decode[Service](json.Unmarshal, file),
+		cnfg.File[Service](json.Unmarshal, file),
 		flags[Service]("-log-level", "debug"),
 	)
 	if err != nil {
@@ -450,7 +450,7 @@ func TestUsage(t *testing.T) {
 	args := []string{"-h"}
 
 	_, _ = cnfg.Parse(defaults(),
-		cnfg.DecodeFlag[Config](json.Unmarshal, set, "config", args),
+		cnfg.FileFlag[Config](json.Unmarshal, set, "config", args),
 		cnfg.FlagSet[Config](set, args),
 	)
 

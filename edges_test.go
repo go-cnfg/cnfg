@@ -37,7 +37,7 @@ type Edges struct {
 func edgeFile(t *testing.T, content string) cnfg.Parser[Edges] {
 	t.Helper()
 
-	return cnfg.Decode[Edges](json.Unmarshal, writeFile(t, "edges.json", content))
+	return cnfg.File[Edges](json.Unmarshal, writeFile(t, "edges.json", content))
 }
 
 func TestNilPointerStructIsFilled(t *testing.T) {
@@ -152,7 +152,7 @@ func TestFlagsFromArgs(t *testing.T) {
 func TestBrokenFileIsStillAnError(t *testing.T) {
 	broken := writeFile(t, "broken.json", "{")
 
-	if _, err := cnfg.Parse(Edges{}, cnfg.Decode[Edges](json.Unmarshal, broken)); !errors.Is(err, cnfg.ErrDecodeFile) {
+	if _, err := cnfg.Parse(Edges{}, cnfg.File[Edges](json.Unmarshal, broken)); !errors.Is(err, cnfg.ErrDecodeFile) {
 		t.Errorf("got %v, want ErrDecodeFile", err)
 	}
 }
@@ -161,7 +161,7 @@ func TestDecodeFlagNotStruct(t *testing.T) {
 	set := flag.NewFlagSet("test", flag.ContinueOnError)
 	set.SetOutput(io.Discard)
 
-	_, err := cnfg.Parse(42, cnfg.DecodeFlag[int](json.Unmarshal, set, "config", nil))
+	_, err := cnfg.Parse(42, cnfg.FileFlag[int](json.Unmarshal, set, "config", nil))
 	if !errors.Is(err, cnfg.ErrNotStruct) {
 		t.Errorf("got %v, want ErrNotStruct", err)
 	}

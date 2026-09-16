@@ -82,7 +82,7 @@ func TestTypesFromFile(t *testing.T) {
 		"unknown": true
 	}`)
 
-	cfg, err := cnfg.Parse(Types{}, cnfg.Decode[Types](json.Unmarshal, file))
+	cfg, err := cnfg.Parse(Types{}, cnfg.File[Types](json.Unmarshal, file))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestInvalidFileValues(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			file := writeFile(t, "types.json", tc.content)
-			_, err := cnfg.Parse(Types{}, cnfg.Decode[Types](json.Unmarshal, file))
+			_, err := cnfg.Parse(Types{}, cnfg.File[Types](json.Unmarshal, file))
 			if !errors.Is(err, cnfg.ErrDecodeFile) {
 				t.Fatalf("got %v, want ErrDecodeFile", err)
 			}

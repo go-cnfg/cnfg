@@ -27,7 +27,7 @@ type Unknown struct {
 // fail on them, log them or count them. The error it returns ends the parse, and the
 // keys of one source come in order:
 //
-//	cnfg.Decode[Config](yaml.Unmarshal, path, cnfg.OnUnknown(func(u cnfg.Unknown) error {
+//	cnfg.File[Config](yaml.Unmarshal, path, cnfg.OnUnknown(func(u cnfg.Unknown) error {
 //		log.Printf("%s: ignoring %s=%v", u.Source, u.Key, u.Value)
 //		return nil
 //	}))
@@ -42,7 +42,7 @@ func OnUnknown(fn func(Unknown) error) Option {
 // Strict is OnUnknown with a handler that ends the parse on the first key it could not
 // place, with an error wrapping ErrUnknownField:
 //
-//	cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml", cnfg.Strict)
+//	cnfg.File[Config](yaml.Unmarshal, "/etc/app/config.yaml", cnfg.Strict)
 //	cnfg.Env[Config]("APP", cnfg.Strict)
 var Strict = OnUnknown(func(u Unknown) error {
 	return fmt.Errorf("%s: %w %s", u.Source, ErrUnknownField, u.Key)
@@ -51,7 +51,7 @@ var Strict = OnUnknown(func(u Unknown) error {
 // LogUnknown is OnUnknown with a handler that logs every key it could not place with
 // the default slog logger and lets the parse go on:
 //
-//	cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml", cnfg.LogUnknown)
+//	cnfg.File[Config](yaml.Unmarshal, "/etc/app/config.yaml", cnfg.LogUnknown)
 //
 // The value is left out of the log on purpose, a mistyped key can still carry a secret.
 var LogUnknown = OnUnknown(func(u Unknown) error {
