@@ -48,6 +48,7 @@ func main() {
 - [Tags](#tags)
 - [Config files](#config-files)
 - [Drop-in directories](#drop-in-directories)
+- [Extra keys](#extra-keys)
 - [Types](#types)
 - [Validation](#validation)
 - [Flags](#flags)
@@ -103,6 +104,9 @@ of your config together with the error when a parser fails.
 | `DecodeDir[T](dec, dir)` | Every `.conf` file of a drop-in directory. |
 | `DecodeFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
 | `Optional(p)` | Wraps a parser so that a missing file is not an error. |
+
+`Env`, `EnvFrom` and all four file parsers take options as last arguments, see
+[extra keys](#extra-keys).
 
 Nothing is magic about the order. Put the sources in the order you want them to win, and put
 your own parsers among them wherever they belong.
@@ -200,6 +204,68 @@ cfg, err := cnfg.Parse(defaults,
 Number the files the way sysctl.d and systemd drop-ins do, since the last one to set a field
 wins. `DecodeDir` is `DecodeGlob` with the usual `*.conf` pattern, so reach for `DecodeGlob`
 when the files are named something else, `cnfg.DecodeGlob[Config](yaml.Unmarshal, "/etc/app/config.d/*.yaml")`.
+
+## Extra keys
+
+A key a config file has but your config does not is ignored, which is friendly to a file that
+several programs read and unfriendly to a typo. Pass `cnfg.Strict` to a source and it fails on
+anything it cannot place:
+
+```go
+cfg, err := cnfg.Parse(defaults,
+    cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml", cnfg.Strict),
+    cnfg.Env[Config]("APP", cnfg.Strict),
+    cnfg.Flags[Config](),
+)
+```
+
+```
+/etc/app/config.yaml: no field for server.tls-cret
+APP: no field for APP_ADRR
+```
+
+The error wraps `ErrUnknownField` and names the first key it could not place, nested ones
+joined with a dot and slice elements with their index. Keys under a `map` or an `any` field
+are values rather than names, so they are left alone. Flags are strict on their own, an unknown flag has
+always been an error.
+
+Failing is one thing you can do with those keys. `cnfg.OnUnknown` hands them to you instead,
+one call per key, and the error your function returns is what ends the parse, so returning nil
+keeps it going:
+
+```go
+extras := cnfg.OnUnknown(func(u cnfg.Unknown) error {
+    log.Printf("%s: ignoring %s=%v", u.Source, u.Key, u.Value)
+    return nil
+})
+
+cfg, err := cnfg.Parse(defaults,
+    cnfg.DecodeDir[Config](yaml.Unmarshal, "/etc/app/config.d", extras),
+    cnfg.Env[Config]("APP", extras),
+)
+```
+
+`Source` is the file the key came from, or the env prefix it was looked up with, so a drop-in
+directory reports the file that carries the typo. `Value` is what the file or the environment
+had under that key, and the keys of one source arrive in order.
+
+Two handlers come ready made, both of them `OnUnknown` with a function in it:
+
+| Option | Does |
+| --- | --- |
+| `cnfg.Strict` | Ends the parse on the first key, with the error above. |
+| `cnfg.LogUnknown` | Warns about every key with the default `slog` logger and goes on. |
+
+```
+level=WARN msg="config key with no field" source=/etc/app/config.yaml key=worker_cont
+```
+
+`LogUnknown` leaves the value out of the log on purpose, a mistyped key can still carry a
+secret.
+
+For env vars the prefix is what tells yours from the rest of the environment, so `APP_ADRR` is
+reported while `PATH` is not, and an `Env` that reports extras without a prefix fails with
+`ErrNoPrefix` rather than reading the whole environment as yours.
 
 ## Types
 
