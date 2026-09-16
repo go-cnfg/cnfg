@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -126,7 +125,7 @@ func ExampleGlob() {
 	// Output: {Addr::9999 Timeout:1m0s Debug:false} <nil>
 }
 
-func ExampleStrict() {
+func ExampleFileStrict() {
 	type Config struct {
 		Addr string
 	}
@@ -135,7 +134,7 @@ func ExampleStrict() {
 	_ = os.WriteFile(file, []byte(`{"addr": ":8080", "adrr": ":9090"}`), 0o600)
 	defer func() { _ = os.Remove(file) }()
 
-	_, err := cnfg.Parse(Config{}, cnfg.File[Config](json.Unmarshal, file, cnfg.Strict))
+	_, err := cnfg.Parse(Config{}, cnfg.FileStrict[Config](json.Unmarshal, file))
 	fmt.Println(strings.TrimPrefix(err.Error(), file+": "))
 
 	cfg, err := cnfg.Parse(Config{}, cnfg.File[Config](json.Unmarshal, file))
@@ -143,55 +142,5 @@ func ExampleStrict() {
 
 	// Output:
 	// no field for adrr
-	// :8080 <nil>
-}
-
-func ExampleOnUnknown() {
-	type Config struct {
-		Addr string
-	}
-
-	file := filepath.Join(os.TempDir(), "cnfg-extras.json")
-	_ = os.WriteFile(file, []byte(`{"addr": ":8080", "adrr": ":9090", "workrs": 4}`), 0o600)
-	defer func() { _ = os.Remove(file) }()
-
-	cfg, err := cnfg.Parse(Config{}, cnfg.File[Config](json.Unmarshal, file, cnfg.OnUnknown(func(u cnfg.Unknown) error {
-		fmt.Printf("ignoring %s=%v\n", u.Key, u.Value)
-		return nil
-	})))
-	fmt.Println(cfg.Addr, err)
-
-	// Output:
-	// ignoring adrr=:9090
-	// ignoring workrs=4
-	// :8080 <nil>
-}
-
-func ExampleLogUnknown() {
-	type Config struct {
-		Addr string
-	}
-
-	old := slog.Default()
-	defer slog.SetDefault(old)
-
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
-			if a.Key == slog.TimeKey || a.Key == "source" {
-				return slog.Attr{}
-			}
-			return a
-		},
-	})))
-
-	file := filepath.Join(os.TempDir(), "cnfg-logged.json")
-	_ = os.WriteFile(file, []byte(`{"addr": ":8080", "adrr": ":9090"}`), 0o600)
-	defer func() { _ = os.Remove(file) }()
-
-	cfg, err := cnfg.Parse(Config{}, cnfg.File[Config](json.Unmarshal, file, cnfg.LogUnknown))
-	fmt.Println(cfg.Addr, err)
-
-	// Output:
-	// level=WARN msg="config key with no field" key=adrr
 	// :8080 <nil>
 }

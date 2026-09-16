@@ -15,10 +15,20 @@ import (
 // not there is a no op, since a config file is the source that is allowed to be missing.
 // encoding/json, go.yaml.in/yaml/v3 and github.com/BurntSushi/toml all provide an
 // Unmarshal that can be used as dec, and so does anything with that signature.
-func File[T any](dec Decoder, path string, opts ...Option) Parser[T] {
-	o := newOptions(opts)
+func File[T any](dec Decoder, path string) Parser[T] {
+	return file[T](dec, path, false)
+}
+
+// FileStrict is File that also fails on a key the config has no field for, with an error
+// wrapping ErrUnknownField. Keys under a map or an any field are values rather than
+// names, so they are left alone.
+func FileStrict[T any](dec Decoder, path string) Parser[T] {
+	return file[T](dec, path, true)
+}
+
+func file[T any](dec Decoder, path string, strict bool) Parser[T] {
 	return func(cfg T) (T, error) {
-		return readFile(cfg, dec, path, o)
+		return readFile(cfg, dec, path, strict)
 	}
 }
 
@@ -27,8 +37,17 @@ func File[T any](dec Decoder, path string, opts ...Option) Parser[T] {
 // convention of /etc, as in Glob[Config](yaml.Unmarshal, "/etc/app/config.d/*.conf"):
 // a file later in the listing wins, and a pattern that matches nothing is a no op,
 // so name the files 10-base.conf, 20-app.conf, 99-local.conf.
-func Glob[T any](dec Decoder, pattern string, opts ...Option) Parser[T] {
-	o := newOptions(opts)
+func Glob[T any](dec Decoder, pattern string) Parser[T] {
+	return glob[T](dec, pattern, false)
+}
+
+// GlobStrict is Glob that also fails on a key the config has no field for, the way
+// FileStrict does, naming the file that carries it.
+func GlobStrict[T any](dec Decoder, pattern string) Parser[T] {
+	return glob[T](dec, pattern, true)
+}
+
+func glob[T any](dec Decoder, pattern string, strict bool) Parser[T] {
 	return func(cfg T) (T, error) {
 		paths, err := filepath.Glob(pattern)
 		if err != nil {
@@ -39,7 +58,7 @@ func Glob[T any](dec Decoder, pattern string, opts ...Option) Parser[T] {
 			if info, err := os.Stat(path); err != nil || info.IsDir() {
 				continue
 			}
-			if cfg, err = readFile(cfg, dec, path, o); err != nil {
+			if cfg, err = readFile(cfg, dec, path, strict); err != nil {
 				return cfg, err
 			}
 		}
@@ -51,9 +70,18 @@ func Glob[T any](dec Decoder, pattern string, opts ...Option) Parser[T] {
 // The flag is registered in set, which should be the one given to FlagSet later on, and args are
 // scanned for it before any other source is read. It is a no op when the flag was not given, or
 // when it names a file that is not there.
-func FileFromFlag[T any](dec Decoder, set *flag.FlagSet, name string, args []string, opts ...Option) Parser[T] {
+func FileFromFlag[T any](dec Decoder, set *flag.FlagSet, name string, args []string) Parser[T] {
+	return fileFromFlag[T](dec, set, name, args, false)
+}
+
+// FileFromFlagStrict is FileFromFlag that also fails on a key the config has no field
+// for, the way FileStrict does.
+func FileFromFlagStrict[T any](dec Decoder, set *flag.FlagSet, name string, args []string) Parser[T] {
+	return fileFromFlag[T](dec, set, name, args, true)
+}
+
+func fileFromFlag[T any](dec Decoder, set *flag.FlagSet, name string, args []string, strict bool) Parser[T] {
 	set.String(name, "", "path to config file")
-	o := newOptions(opts)
 
 	return func(cfg T) (T, error) {
 		ff, err := configFields(&cfg)
@@ -65,7 +93,7 @@ func FileFromFlag[T any](dec Decoder, set *flag.FlagSet, name string, args []str
 		if path == "" {
 			return cfg, nil
 		}
-		return readFile(cfg, dec, path, o)
+		return readFile(cfg, dec, path, strict)
 	}
 }
 
@@ -85,7 +113,7 @@ func pathFromArgs(setName, name string, args []string, ff []field) string {
 	return *path
 }
 
-func readFile[T any](cfg T, dec Decoder, path string, o options) (T, error) {
+func readFile[T any](cfg T, dec Decoder, path string, strict bool) (T, error) {
 	v := reflect.ValueOf(&cfg).Elem()
 	if v.Kind() != reflect.Struct {
 		return cfg, fmt.Errorf("%w, got %T", ErrNotStruct, cfg)
@@ -107,8 +135,8 @@ func readFile[T any](cfg T, dec Decoder, path string, o options) (T, error) {
 		return cfg, fmt.Errorf("%w %s: %w", ErrDecodeFile, path, err)
 	}
 
-	if o.onUnknown != nil {
-		return cfg, o.report(path, unknownKeys(v, tree, ""))
+	if strict {
+		return cfg, unknownField(path, unknownKeys(v, tree, ""))
 	}
 	return cfg, nil
 }

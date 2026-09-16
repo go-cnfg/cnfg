@@ -103,8 +103,8 @@ of your config together with the error when a parser fails.
 | `Glob[T](dec, pattern)` | Every file matching the glob, in lexical order. |
 | `FileFromFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
 
-`Env`, `EnvFrom` and all four file parsers take options as last arguments, see
-[extra keys](#extra-keys).
+`Env`, `EnvFrom` and the file parsers each have a `Strict` twin, `EnvStrict`, `FileStrict` and so
+on, that fails on a key your config has no field for, see [extra keys](#extra-keys).
 
 Nothing is magic about the order. Put the sources in the order you want them to win, and put
 your own parsers among them wherever they belong.
@@ -206,13 +206,14 @@ wins. `.conf` is what `/etc` uses, but the pattern is yours, so `*.yaml` works j
 ## Extra keys
 
 A key a config file has but your config does not is ignored, which is friendly to a file that
-several programs read and unfriendly to a typo. Pass `cnfg.Strict` to a source and it fails on
-anything it cannot place:
+several programs read and unfriendly to a typo. Every source that can have extra keys comes in a
+`Strict` flavor too, `FileStrict`, `GlobStrict`, `FileFromFlagStrict`, `EnvStrict` and
+`EnvFromStrict`, which fails on anything it cannot place:
 
 ```go
 cfg, err := cnfg.Parse(defaults,
-    cnfg.File[Config](yaml.Unmarshal, "/etc/app/config.yaml", cnfg.Strict),
-    cnfg.Env[Config]("APP", cnfg.Strict),
+    cnfg.FileStrict[Config](yaml.Unmarshal, "/etc/app/config.yaml"),
+    cnfg.EnvStrict[Config]("APP"),
     cnfg.Flags[Config](),
 )
 ```
@@ -223,47 +224,14 @@ APP: no field for APP_ADRR
 ```
 
 The error wraps `ErrUnknownField` and names the first key it could not place, nested ones
-joined with a dot and slice elements with their index. Keys under a `map` or an `any` field
-are values rather than names, so they are left alone. Flags are strict on their own, an unknown flag has
-always been an error.
-
-Failing is one thing you can do with those keys. `cnfg.OnUnknown` hands them to you instead,
-one call per key, and the error your function returns is what ends the parse, so returning nil
-keeps it going:
-
-```go
-extras := cnfg.OnUnknown(func(u cnfg.Unknown) error {
-    log.Printf("%s: ignoring %s=%v", u.Source, u.Key, u.Value)
-    return nil
-})
-
-cfg, err := cnfg.Parse(defaults,
-    cnfg.Glob[Config](yaml.Unmarshal, "/etc/app/config.d/*.conf", extras),
-    cnfg.Env[Config]("APP", extras),
-)
-```
-
-`Source` is the file the key came from, or the env prefix it was looked up with, so a drop-in
-directory reports the file that carries the typo. `Value` is what the file or the environment
-had under that key, and the keys of one source arrive in order.
-
-Two handlers come ready made, both of them `OnUnknown` with a function in it:
-
-| Option | Does |
-| --- | --- |
-| `cnfg.Strict` | Ends the parse on the first key, with the error above. |
-| `cnfg.LogUnknown` | Warns about every key with the default `slog` logger and goes on. |
-
-```
-level=WARN msg="config key with no field" source=/etc/app/config.yaml key=worker_cont
-```
-
-`LogUnknown` leaves the value out of the log on purpose, a mistyped key can still carry a
-secret.
+joined with a dot and slice elements with their index. `GlobStrict` names the file that
+carries the key, so a drop-in directory points at the right file. Keys under a `map` or an
+`any` field are values rather than names, so they are left alone. Flags are strict on their
+own, an unknown flag has always been an error.
 
 For env vars the prefix is what tells yours from the rest of the environment, so `APP_ADRR` is
-reported while `PATH` is not, and an `Env` that reports extras without a prefix fails with
-`ErrNoPrefix` rather than reading the whole environment as yours.
+reported while `PATH` is not, and `EnvStrict` without a prefix fails with `ErrNoPrefix` rather
+than reading the whole environment as yours.
 
 ## Types
 

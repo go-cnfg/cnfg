@@ -9,22 +9,36 @@ import (
 // Env reads the environment variables named after the config fields, prefixed with prefix.
 // Field Addr of struct field Server is read from PREFIX_SERVER_ADDR, or from SERVER_ADDR
 // when the prefix is empty.
-func Env[T any](prefix string, opts ...Option) Parser[T] {
-	o := newOptions(opts)
+func Env[T any](prefix string) Parser[T] {
 	return func(cfg T) (T, error) {
-		return envFrom(cfg, prefix, os.Environ(), o)
+		return envFrom(cfg, prefix, os.Environ(), false)
+	}
+}
+
+// EnvStrict is Env that also fails on a variable that carries the prefix but names no
+// field, with an error wrapping ErrUnknownField. The prefix is what tells your variables
+// from the rest of the environment, so an empty one fails with ErrNoPrefix.
+func EnvStrict[T any](prefix string) Parser[T] {
+	return func(cfg T) (T, error) {
+		return envFrom(cfg, prefix, os.Environ(), true)
 	}
 }
 
 // EnvFrom works like Env but reads the given KEY=VALUE pairs instead of os.Environ().
-func EnvFrom[T any](prefix string, environ []string, opts ...Option) Parser[T] {
-	o := newOptions(opts)
+func EnvFrom[T any](prefix string, environ []string) Parser[T] {
 	return func(cfg T) (T, error) {
-		return envFrom(cfg, prefix, environ, o)
+		return envFrom(cfg, prefix, environ, false)
 	}
 }
 
-func envFrom[T any](cfg T, prefix string, environ []string, o options) (T, error) {
+// EnvFromStrict works like EnvStrict but reads the given KEY=VALUE pairs instead of os.Environ().
+func EnvFromStrict[T any](prefix string, environ []string) Parser[T] {
+	return func(cfg T) (T, error) {
+		return envFrom(cfg, prefix, environ, true)
+	}
+}
+
+func envFrom[T any](cfg T, prefix string, environ []string, strict bool) (T, error) {
 	ff, err := configFields(&cfg)
 	if err != nil {
 		return cfg, err
@@ -51,26 +65,26 @@ func envFrom[T any](cfg T, prefix string, environ []string, o options) (T, error
 		}
 	}
 
-	if o.onUnknown != nil {
-		return cfg, unknownEnv(o, prefix, env, known)
+	if strict {
+		return cfg, unknownEnv(prefix, env, known)
 	}
 	return cfg, nil
 }
 
-// unknownEnv reports the variables that carry the prefix but name no field.
-func unknownEnv(o options, prefix string, env map[string]string, known map[string]struct{}) error {
+// unknownEnv reports the first variable that carries the prefix but names no field.
+func unknownEnv(prefix string, env map[string]string, known map[string]struct{}) error {
 	p := envName(prefix, "")
 	if p == "" {
 		return ErrNoPrefix
 	}
 
-	var unknown []Unknown
-	for key, val := range env {
+	var unknown []string
+	for key := range env {
 		if _, ok := known[key]; !ok && strings.HasPrefix(key, p) {
-			unknown = append(unknown, Unknown{Key: key, Value: val})
+			unknown = append(unknown, key)
 		}
 	}
-	return o.report(prefix, unknown)
+	return unknownField(prefix, unknown)
 }
 
 func envName(prefix, name string) string {
