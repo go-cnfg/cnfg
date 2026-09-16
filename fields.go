@@ -16,15 +16,16 @@ type field struct {
 
 // tag holds what the cnfg struct tag says about a field.
 type tag struct {
-	name  string
-	named bool
-	skip  bool
+	name    string
+	named   bool
+	skip    bool
+	require bool
 }
 
-// parseTag reads the cnfg tag of the field, for example `cnfg:"addr"`.
+// parseTag reads the cnfg tag of the field, for example `cnfg:"addr,require"`.
 // The name falls back to the field name.
 func parseTag(sf reflect.StructField) tag {
-	name, _, _ := strings.Cut(sf.Tag.Get(NameTag), ",")
+	name, opts, _ := strings.Cut(sf.Tag.Get(NameTag), ",")
 	t := tag{name: name, named: name != ""}
 	if name == "-" {
 		t.skip = true
@@ -33,6 +34,11 @@ func parseTag(sf reflect.StructField) tag {
 
 	if !t.named {
 		t.name = kebab(sf.Name)
+	}
+	for _, opt := range strings.Split(opts, ",") {
+		if strings.TrimSpace(opt) == "require" {
+			t.require = true
+		}
 	}
 	return t
 }
