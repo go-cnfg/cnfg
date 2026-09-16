@@ -254,7 +254,7 @@ func TestEnvFromProcess(t *testing.T) {
 	assertEqual(t, "env from the process", ":7777", cfg.Addr)
 }
 
-func TestFileFlag(t *testing.T) {
+func TestFileFromFlag(t *testing.T) {
 	file := writeFile(t, "app.json", `{"addr": ":1111", "metadata": {"env": "test"}}`)
 	args := []string{"-ratio", "2", "-config", file, "-verbose"}
 
@@ -275,7 +275,7 @@ func TestFileFlag(t *testing.T) {
 	assertEqual(t, "flag after file flag", true, cfg.Debug)
 }
 
-func TestFileFlagMissing(t *testing.T) {
+func TestFileFromFlagMissing(t *testing.T) {
 	args := []string{"-addr", ":1234"}
 	set := flag.NewFlagSet("test", flag.ContinueOnError)
 	set.SetOutput(io.Discard)
