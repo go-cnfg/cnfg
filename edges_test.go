@@ -149,17 +149,10 @@ func TestFlagsFromArgs(t *testing.T) {
 	assertEqual(t, "addr from os.Args", ":4444", cfg.Addr)
 }
 
-func TestOptionalPassesTheRestThrough(t *testing.T) {
-	file := writeFile(t, "edges.json", `{"addr": ":5555"}`)
-
-	cfg, err := cnfg.Parse(Edges{}, cnfg.Optional(cnfg.Decode[Edges](json.Unmarshal, file)))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	assertEqual(t, "file still read", ":5555", cfg.Addr)
-
+func TestBrokenFileIsStillAnError(t *testing.T) {
 	broken := writeFile(t, "broken.json", "{")
-	if _, err := cnfg.Parse(Edges{}, cnfg.Optional(cnfg.Decode[Edges](json.Unmarshal, broken))); !errors.Is(err, cnfg.ErrDecodeFile) {
+
+	if _, err := cnfg.Parse(Edges{}, cnfg.Decode[Edges](json.Unmarshal, broken)); !errors.Is(err, cnfg.ErrDecodeFile) {
 		t.Errorf("got %v, want ErrDecodeFile", err)
 	}
 }

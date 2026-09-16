@@ -290,14 +290,26 @@ func TestFileFlagMissing(t *testing.T) {
 	assertEqual(t, "no file given", ":1234", cfg.Addr)
 }
 
-func TestOptional(t *testing.T) {
+func TestMissingFileIsSkipped(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "missing.json")
 
-	if _, err := cnfg.Parse(defaults(), cnfg.Optional(cnfg.Decode[Config](json.Unmarshal, missing))); err != nil {
-		t.Errorf("optional file should be ignored: %v", err)
+	cfg, err := cnfg.Parse(defaults(), cnfg.Decode[Config](json.Unmarshal, missing))
+	if err != nil {
+		t.Fatalf("a file that is not there should be a no op: %v", err)
+	}
+	assertEqual(t, "defaults kept", ":8080", cfg.Addr)
+}
+
+func TestUnreadableFileIsAnError(t *testing.T) {
+	path := writeFile(t, "locked.json", `{"addr": ":1111"}`)
+	if err := os.Chmod(path, 0o000); err != nil {
+		t.Skipf("cannot take the read bit away: %v", err)
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root reads it anyway")
 	}
 
-	_, err := cnfg.Parse(defaults(), cnfg.Decode[Config](json.Unmarshal, missing))
+	_, err := cnfg.Parse(defaults(), cnfg.Decode[Config](json.Unmarshal, path))
 	if !errors.Is(err, cnfg.ErrReadFile) {
 		t.Errorf("got %v, want ErrReadFile", err)
 	}

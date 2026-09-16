@@ -11,9 +11,10 @@ import (
 	"reflect"
 )
 
-// Decode decodes the config file at path with dec on top of the config.
-// encoding/json, go.yaml.in/yaml/v3 and github.com/BurntSushi/toml all provide
-// an Unmarshal that can be used as dec, and so does anything with that signature.
+// Decode decodes the config file at path with dec on top of the config. A file that is
+// not there is a no op, since a config file is the source that is allowed to be missing.
+// encoding/json, go.yaml.in/yaml/v3 and github.com/BurntSushi/toml all provide an
+// Unmarshal that can be used as dec, and so does anything with that signature.
 func Decode[T any](dec Decoder, path string, opts ...Option) Parser[T] {
 	o := newOptions(opts)
 	return func(cfg T) (T, error) {
@@ -51,17 +52,6 @@ func DecodeGlob[T any](dec Decoder, pattern string, opts ...Option) Parser[T] {
 // that one directly when the files are named something else.
 func DecodeDir[T any](dec Decoder, dir string, opts ...Option) Parser[T] {
 	return DecodeGlob[T](dec, filepath.Join(dir, "*.conf"), opts...)
-}
-
-// Optional turns a missing config file into a no op.
-func Optional[T any](p Parser[T]) Parser[T] {
-	return func(cfg T) (T, error) {
-		out, err := p(cfg)
-		if errors.Is(err, fs.ErrNotExist) {
-			return cfg, nil
-		}
-		return out, err
-	}
 }
 
 // DecodeFlag decodes the config file the user gave with the named flag, for example -config app.json.
@@ -108,6 +98,9 @@ func decodeFile[T any](cfg T, dec Decoder, path string, o options) (T, error) {
 	}
 
 	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return cfg, nil
+	}
 	if err != nil {
 		return cfg, fmt.Errorf("%w %s: %w", ErrReadFile, path, err)
 	}

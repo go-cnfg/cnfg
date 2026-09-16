@@ -26,7 +26,7 @@ func ExampleParse() {
 	}
 
 	cfg, err := cnfg.Parse(defaults,
-		cnfg.Optional(cnfg.Decode[AppConfig](json.Unmarshal, "app.json")),
+		cnfg.Decode[AppConfig](json.Unmarshal, "app.json"),
 		cnfg.EnvFrom[AppConfig]("APP", []string{"APP_TIMEOUT=1m"}),
 		flags[AppConfig]("-debug"),
 	)

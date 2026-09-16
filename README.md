@@ -28,7 +28,7 @@ func main() {
         Addr:    ":8080",
         Timeout: 5 * time.Second,
     },
-        cnfg.Optional(cnfg.Decode[Config](json.Unmarshal, "/etc/app/config.json")),
+        cnfg.Decode[Config](json.Unmarshal, "/etc/app/config.json"),
         cnfg.Env[Config]("APP"),
         cnfg.Flags[Config](),
     )
@@ -103,7 +103,6 @@ of your config together with the error when a parser fails.
 | `DecodeGlob[T](dec, pattern)` | Every file matching the glob, in lexical order. |
 | `DecodeDir[T](dec, dir)` | Every `.conf` file of a drop-in directory. |
 | `DecodeFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
-| `Optional(p)` | Wraps a parser so that a missing file is not an error. |
 
 `Env`, `EnvFrom` and all four file parsers take options as last arguments, see
 [extra keys](#extra-keys).
@@ -147,21 +146,22 @@ format is simply the library you already import:
 ```go
 import "go.yaml.in/yaml/v3"
 
-cfg, err := cnfg.Parse(defaults, cnfg.Optional(cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml")))
+cfg, err := cnfg.Parse(defaults, cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml"))
 ```
 
-`Optional` turns a missing file into a no op, without it a missing file is an error wrapping
-`fs.ErrNotExist`. Anything with that signature works, so a format cnfg has never heard of
-needs no support from cnfg:
+A config file that is not there is a no op, since that is the one source allowed to be
+missing, and your defaults are the config in that case. A file that is there but cannot be
+read or decoded is still an error, wrapping `ErrReadFile` or `ErrDecodeFile`.
+
+Anything with that signature works, so a format cnfg has never heard of needs no support from
+cnfg:
 
 ```go
 cfg, err := cnfg.Parse(defaults, cnfg.Decode[Config](hcl.Unmarshal, "/etc/app/config.hcl"))
 ```
 
 Values from files go through the same parsing as env vars and flags, so a duration is written
-as `"30s"` and a `net.IP` as `"10.0.0.1"` in every source. A file that fails to decode stops
-the parse with an error wrapping `ErrDecodeFile`, and one that cannot be read wraps
-`ErrReadFile`.
+as `"30s"` and a `net.IP` as `"10.0.0.1"` in every source.
 
 To let the user point at a config file with a flag, give `DecodeFlag` and `FlagSet` the same
 flag set and args. `DecodeFlag` registers the flag and reads the file before the other sources,
@@ -182,13 +182,13 @@ cfg, err := cnfg.Parse(defaults,
 
 `DecodeDir` reads a whole `conf.d` directory the way the rest of `/etc` does: every `.conf`
 file in it, in lexical order, each one on top of the last. A directory that is not there is a
-no op, so the usual base file plus drop-ins looks like this:
+no op like a missing file, so the usual base file plus drop-ins looks like this:
 
 ```go
 import "go.yaml.in/yaml/v3"
 
 cfg, err := cnfg.Parse(defaults,
-    cnfg.Optional(cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml")),
+    cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml"),
     cnfg.DecodeDir[Config](yaml.Unmarshal, "/etc/app/config.d"),
     cnfg.Env[Config]("APP"),
     cnfg.Flags[Config](),
