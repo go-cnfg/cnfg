@@ -134,6 +134,7 @@ ignores case, dashes and underscores. `{"server": {"tls-cert": "a.pem"}}` and
 | `cnfg:"name"` | Use the given name instead of the generated one. |
 | `cnfg:"-"` | Leave the field out of all sources. |
 | `usage:"text"` | Document the field in the usage output. |
+| `cnfg:",require"` | Make `Require` fail when the field is still zero, after a name or on its own. |
 
 ## Config files
 
@@ -252,7 +253,27 @@ turns down ends the parse with an error wrapping `ErrInvalidValue`:
 invalid value for APP_WORKERS: strconv.ParseInt: parsing "many": invalid syntax
 ```
 
-Rules beyond the type, a range or a field that has to be set, are yours. They are a parser
+A field that has to be set gets `require` in its `cnfg` tag, and `Require` fails on the first
+one that still has its zero value once the sources before it have been read:
+
+```go
+type Config struct {
+    Addr    string `cnfg:",require"`
+    Workers int
+}
+
+cfg, err := cnfg.Parse(Config{Workers: 4}, cnfg.Env[Config]("APP"), cnfg.Flags[Config](), cnfg.Require[Config]())
+```
+
+```
+required field not set: addr
+```
+
+The error wraps `ErrRequired` and names the field the way the flag does, `server-addr` for
+field `Addr` of struct field `Server`. The zero value is what counts as not set, so a bool or a
+number that may well be zero is not something to require.
+
+Rules beyond that, a range or one field depending on another, are yours. They are a parser
 like any other, and a plain function is enough for most configs:
 
 ```go
