@@ -19,7 +19,7 @@ import (
 
 type Config struct {
 	Addr     string        `usage:"address to listen on"`
-	Workers  int           `json:"worker_count"`
+	Workers  int           `cnfg:"worker_count"`
 	Debug    bool          `cnfg:"verbose"`
 	Timeout  time.Duration `usage:"request timeout"`
 	Hosts    []string

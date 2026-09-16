@@ -22,7 +22,7 @@ type tag struct {
 }
 
 // parseTag reads the cnfg tag of the field, for example `cnfg:"addr"`.
-// The name falls back to the json tag and then to the field name.
+// The name falls back to the field name.
 func parseTag(sf reflect.StructField) tag {
 	name, _, _ := strings.Cut(sf.Tag.Get(NameTag), ",")
 	t := tag{name: name, named: name != ""}
@@ -32,7 +32,7 @@ func parseTag(sf reflect.StructField) tag {
 	}
 
 	if !t.named {
-		t.name = fieldName(sf)
+		t.name = kebab(sf.Name)
 	}
 	return t
 }
@@ -109,13 +109,6 @@ func structValue(v reflect.Value) (reflect.Value, bool) {
 		v = v.Elem()
 	}
 	return v, v.Kind() == reflect.Struct
-}
-
-func fieldName(sf reflect.StructField) string {
-	if name, _, _ := strings.Cut(sf.Tag.Get("json"), ","); name != "" && name != "-" {
-		return name
-	}
-	return kebab(sf.Name)
 }
 
 // kebab turns a Go field name into a flag name: ListenAddr becomes listen-addr and HTTPAddr http-addr.

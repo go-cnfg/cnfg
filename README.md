@@ -134,7 +134,6 @@ ignores case, dashes and underscores. `{"server": {"tls-cert": "a.pem"}}` and
 | `cnfg:"name"` | Use the given name instead of the generated one. |
 | `cnfg:"-"` | Leave the field out of all sources. |
 | `usage:"text"` | Document the field in the usage output. |
-| `json:"name"` | Used as the name when there is no `cnfg` tag. |
 
 ## Config files
 
