@@ -485,3 +485,14 @@ func assertEqual[T comparable](t *testing.T, msg string, want, got T) {
 		t.Errorf("%s: got %v, want %v", msg, got, want)
 	}
 }
+
+func TestEnvIsReadWhenTheParserRuns(t *testing.T) {
+	parser := cnfg.Env[Config]("APP")
+	t.Setenv("APP_ADDR", ":7778")
+
+	cfg, err := cnfg.Parse(defaults(), parser)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertEqual(t, "env read at parse time", ":7778", cfg.Addr)
+}

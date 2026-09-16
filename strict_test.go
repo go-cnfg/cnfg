@@ -52,7 +52,7 @@ func TestStrictFileRejects(t *testing.T) {
 		{name: "nested", content: `{"server": {"tls-cret": "a.pem"}}`, want: "server.tls-cret"},
 		{name: "slice element", content: `{"items": [{"name": "a"}, {"prt": 2}]}`, want: "items[1].prt"},
 		{name: "skipped field", content: `{"secret": "x"}`, want: "secret"},
-		{name: "several", content: `{"one": 1, "two": 2}`, want: "one, two"},
+		{name: "first of several", content: `{"one": 1, "two": 2}`, want: "one"},
 	}
 
 	for _, tc := range tests {
@@ -155,13 +155,18 @@ func TestOnUnknownCollects(t *testing.T) {
 	}
 	assertEqual(t, "parsing went on", ":2", cfg.Addr)
 
-	if len(seen) != 2 {
-		t.Fatalf("got %d reports, want one per source: %+v", len(seen), seen)
+	if len(seen) != 3 {
+		t.Fatalf("got %d reports, want one per key: %+v", len(seen), seen)
 	}
+
 	assertEqual(t, "file source", file, seen[0].Source)
-	assertEqual(t, "file keys", "server.tls-cret, worker_cont", strings.Join(seen[0].Keys, ", "))
-	assertEqual(t, "env source", "APP", seen[1].Source)
-	assertEqual(t, "env keys", "APP_ADRR", strings.Join(seen[1].Keys, ", "))
+	assertEqual(t, "keys come in order", "server.tls-cret", seen[0].Key)
+	assertEqual(t, "nested value", "a.pem", seen[0].Value)
+	assertEqual(t, "second key", "worker_cont", seen[1].Key)
+	assertEqual(t, "number value", 8.0, seen[1].Value)
+	assertEqual(t, "env source", "APP", seen[2].Source)
+	assertEqual(t, "env key", "APP_ADRR", seen[2].Key)
+	assertEqual(t, "env value", ":3", seen[2].Value)
 }
 
 func TestOnUnknownStaysQuietWhenThereIsNothing(t *testing.T) {
@@ -203,11 +208,11 @@ func TestOnUnknownPerFileInDir(t *testing.T) {
 
 	var sources []string
 	_, err := cnfg.Parse(Strictly{}, cnfg.DecodeDir[Strictly](json.Unmarshal, dir, cnfg.OnUnknown(func(u cnfg.Unknown) error {
-		sources = append(sources, filepath.Base(u.Source))
+		sources = append(sources, filepath.Base(u.Source)+":"+u.Key)
 		return nil
 	})))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertEqual(t, "one report per file with extras", "20-typo.conf, 30-other.conf", strings.Join(sources, ", "))
+	assertEqual(t, "one report per key, per file", "20-typo.conf:adrr, 30-other.conf:nope", strings.Join(sources, ", "))
 }

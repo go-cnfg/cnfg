@@ -220,22 +220,22 @@ cfg, err := cnfg.Parse(defaults,
 ```
 
 ```
-/etc/app/config.yaml: no field for server.tls-cret, worker_cont
-no field for APP_ADRR
+/etc/app/config.yaml: no field for server.tls-cret
+APP: no field for APP_ADRR
 ```
 
-The error wraps `ErrUnknownField` and names every key it could not place, nested ones joined
-with a dot and slice elements with their index. Keys under a `map` or an `any` field are values
-rather than names, so they are left alone. Flags are strict on their own, an unknown flag has
+The error wraps `ErrUnknownField` and names the first key it could not place, nested ones
+joined with a dot and slice elements with their index. Keys under a `map` or an `any` field
+are values rather than names, so they are left alone. Flags are strict on their own, an unknown flag has
 always been an error.
 
 Failing is one thing you can do with those keys. `cnfg.OnUnknown` hands them to you instead,
-once per file and once for the environment, and the error your function returns is what ends
-the parse, so returning nil keeps it going:
+one call per key, and the error your function returns is what ends the parse, so returning nil
+keeps it going:
 
 ```go
 extras := cnfg.OnUnknown(func(u cnfg.Unknown) error {
-    log.Printf("%s: ignoring %v", u.Source, u.Keys)
+    log.Printf("%s: ignoring %s=%v", u.Source, u.Key, u.Value)
     return nil
 })
 
@@ -245,9 +245,10 @@ cfg, err := cnfg.Parse(defaults,
 )
 ```
 
-`Source` is the file the keys came from, or the env prefix they were looked up with, so a
-drop-in directory reports the file that carries the typo. `cnfg.Strict` is the same hook with
-a handler that returns the error above.
+`Source` is the file the key came from, or the env prefix it was looked up with, so a drop-in
+directory reports the file that carries the typo. `Value` is what the file or the environment
+had under that key, and the keys of one source arrive in order. `cnfg.Strict` is the same hook
+with a handler that returns the error above.
 
 For env vars the prefix is what tells yours from the rest of the environment, so `APP_ADRR` is
 reported while `PATH` is not, and an `Env` that reports extras without a prefix fails with

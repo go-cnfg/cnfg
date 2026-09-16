@@ -155,12 +155,13 @@ func ExampleOnUnknown() {
 	defer func() { _ = os.Remove(file) }()
 
 	cfg, err := cnfg.Parse(Config{}, cnfg.Decode[Config](json.Unmarshal, file, cnfg.OnUnknown(func(u cnfg.Unknown) error {
-		fmt.Println("ignoring", u.Keys)
+		fmt.Printf("ignoring %s=%v\n", u.Key, u.Value)
 		return nil
 	})))
 	fmt.Println(cfg.Addr, err)
 
 	// Output:
-	// ignoring [adrr workrs]
+	// ignoring adrr=:9090
+	// ignoring workrs=4
 	// :8080 <nil>
 }

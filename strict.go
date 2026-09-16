@@ -14,19 +14,20 @@ type options struct {
 	onUnknown func(Unknown) error
 }
 
-// Unknown is what a source could not place, with the file it was read from or the
-// env prefix it was looked up with as the source.
+// Unknown is one key a source could not place, with the value it carried and the file
+// it was read from or the env prefix it was looked up with as the source.
 type Unknown struct {
 	Source string
-	Keys   []string
+	Key    string
+	Value  any
 }
 
-// OnUnknown hands fn the keys a source could not place, so you can fail on them,
-// log them or count them. It is called once per file, and once for the environment,
-// only when there is something to report, and the error it returns ends the parse:
+// OnUnknown hands fn every key a source could not place, one call per key, so you can
+// fail on them, log them or count them. The error it returns ends the parse, and the
+// keys of one source come in order:
 //
 //	cnfg.Decode[Config](yaml.Unmarshal, path, cnfg.OnUnknown(func(u cnfg.Unknown) error {
-//		log.Printf("%s: ignoring %v", u.Source, u.Keys)
+//		log.Printf("%s: ignoring %s=%v", u.Source, u.Key, u.Value)
 //		return nil
 //	}))
 //
@@ -37,13 +38,13 @@ func OnUnknown(fn func(Unknown) error) Option {
 	return func(o *options) { o.onUnknown = fn }
 }
 
-// Strict is OnUnknown with a handler that ends the parse, naming every key it could
-// not place, with an error wrapping ErrUnknownField:
+// Strict is OnUnknown with a handler that ends the parse on the first key it could not
+// place, with an error wrapping ErrUnknownField:
 //
 //	cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml", cnfg.Strict)
 //	cnfg.Env[Config]("APP", cnfg.Strict)
 var Strict = OnUnknown(func(u Unknown) error {
-	return fmt.Errorf("%s: %w %s", u.Source, ErrUnknownField, strings.Join(u.Keys, ", "))
+	return fmt.Errorf("%s: %w %s", u.Source, ErrUnknownField, u.Key)
 })
 
 func newOptions(opts []Option) options {
@@ -54,30 +55,33 @@ func newOptions(opts []Option) options {
 	return o
 }
 
-// report hands the keys to the handler, if there is one and there is anything to report.
-func (o options) report(source string, keys []string) error {
-	if o.onUnknown == nil || len(keys) == 0 {
-		return nil
+// report hands the keys to the handler one by one, in order, and stops at the first
+// error it gives back. Callers check that there is a handler before they look for keys.
+func (o options) report(source string, unknown []Unknown) error {
+	slices.SortFunc(unknown, func(a, b Unknown) int { return strings.Compare(a.Key, b.Key) })
+	for _, u := range unknown {
+		u.Source = source
+		if err := o.onUnknown(u); err != nil {
+			return err
+		}
 	}
-	return o.onUnknown(Unknown{Source: source, Keys: keys})
+	return nil
 }
 
 // unknownKeys lists the keys of tree that no field of the struct behind v reads,
 // with the names the file itself used, nested keys joined with a dot.
-func unknownKeys(v reflect.Value, tree map[string]any, prefix string) []string {
+func unknownKeys(v reflect.Value, tree map[string]any, prefix string) []Unknown {
 	fields := treeFields(v)
 
-	var unknown []string
+	var unknown []Unknown
 	for key, x := range tree {
 		fv, ok := fields[normalize(key)]
 		if !ok {
-			unknown = append(unknown, prefix+key)
+			unknown = append(unknown, Unknown{Key: prefix + key, Value: x})
 			continue
 		}
 		unknown = append(unknown, unknownIn(fv, x, prefix+key+".")...)
 	}
-
-	slices.Sort(unknown)
 	return unknown
 }
 
@@ -111,7 +115,7 @@ func treeFields(v reflect.Value) map[string]reflect.Value {
 }
 
 // unknownIn walks into the value a key was matched to, so nested keys are checked too.
-func unknownIn(v reflect.Value, x any, prefix string) []string {
+func unknownIn(v reflect.Value, x any, prefix string) []Unknown {
 	if v.Kind() == reflect.Pointer && !v.IsNil() {
 		v = v.Elem()
 	}
@@ -124,7 +128,7 @@ func unknownIn(v reflect.Value, x any, prefix string) []string {
 	case v.Kind() == reflect.Slice && v.Type().Elem().Kind() == reflect.Struct:
 		list, _ := x.([]any)
 
-		var unknown []string
+		var unknown []Unknown
 		for i, item := range list {
 			elem := reflect.New(v.Type().Elem()).Elem()
 			unknown = append(unknown, unknownIn(elem, item, fmt.Sprintf("%s[%d].", strings.TrimSuffix(prefix, "."), i))...)

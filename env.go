@@ -3,7 +3,6 @@ package cnfg
 import (
 	"fmt"
 	"os"
-	"slices"
 	"strings"
 )
 
@@ -65,13 +64,12 @@ func unknownEnv(o options, prefix string, env map[string]string, known map[strin
 		return ErrNoPrefix
 	}
 
-	var unknown []string
-	for key := range env {
+	var unknown []Unknown
+	for key, val := range env {
 		if _, ok := known[key]; !ok && strings.HasPrefix(key, p) {
-			unknown = append(unknown, key)
+			unknown = append(unknown, Unknown{Key: key, Value: val})
 		}
 	}
-	slices.Sort(unknown)
 	return o.report(prefix, unknown)
 }
 
