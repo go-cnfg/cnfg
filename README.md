@@ -213,8 +213,16 @@ express them as a flag. They are skipped by the flag and env sources.
 
 ## Validation
 
-cnfg does not validate anything, it only fills the struct, so validation is a parser like any
-other. A plain function is enough for most configs:
+A value that does not fit the field is rejected as it is read, so `WORKERS=many` on an `int`,
+a duration `time.ParseDuration` will not take, or anything your own `Set` or `UnmarshalText`
+turns down ends the parse with an error wrapping `ErrInvalidValue`:
+
+```
+invalid value for APP_WORKERS: strconv.ParseInt: parsing "many": invalid syntax
+```
+
+Rules beyond the type, a range or a field that has to be set, are yours. They are a parser
+like any other, and a plain function is enough for most configs:
 
 ```go
 func validate(cfg Config) (Config, error) {
