@@ -5,7 +5,7 @@
 // they are given, so the last one wins:
 //
 //	cfg, err := cnfg.Parse(Config{Addr: ":8080"},
-//		cnfg.Decode[Config](json.Unmarshal, "app.json"),
+//		cnfg.File[Config](json.Unmarshal, "app.json"),
 //		cnfg.Env[Config]("APP"),
 //		cnfg.Flags[Config](),
 //	)

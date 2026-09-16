@@ -26,7 +26,7 @@ func ExampleParse() {
 	}
 
 	cfg, err := cnfg.Parse(defaults,
-		cnfg.Optional(cnfg.Decode[AppConfig](json.Unmarshal, "app.json")),
+		cnfg.File[AppConfig](json.Unmarshal, "app.json"),
 		cnfg.EnvFrom[AppConfig]("APP", []string{"APP_TIMEOUT=1m"}),
 		flags[AppConfig]("-debug"),
 	)
@@ -61,7 +61,7 @@ func ExampleFlagSet() {
 	args := []string{"-h"}
 
 	_, _ = cnfg.Parse(AppConfig{Addr: ":8080", Timeout: 5 * time.Second},
-		cnfg.DecodeFlag[AppConfig](json.Unmarshal, set, "config", args),
+		cnfg.FileFromFlag[AppConfig](json.Unmarshal, set, "config", args),
 		cnfg.FlagSet[AppConfig](set, args),
 	)
 
@@ -108,7 +108,7 @@ func ExampleParser_validation() {
 	// 8 <nil>
 }
 
-func ExampleDecodeGlob() {
+func ExampleGlob() {
 	dir, _ := os.MkdirTemp("", "conf.d")
 	defer func() { _ = os.RemoveAll(dir) }()
 
@@ -120,7 +120,7 @@ func ExampleDecodeGlob() {
 	}
 
 	cfg, err := cnfg.Parse(AppConfig{Addr: ":8080"},
-		cnfg.DecodeGlob[AppConfig](json.Unmarshal, filepath.Join(dir, "*.conf")),
+		cnfg.Glob[AppConfig](json.Unmarshal, filepath.Join(dir, "*.conf")),
 	)
 	fmt.Printf("%+v %v\n", cfg, err)
 	// Output: {Addr::9999 Timeout:1m0s Debug:false} <nil>
@@ -135,10 +135,10 @@ func ExampleStrict() {
 	_ = os.WriteFile(file, []byte(`{"addr": ":8080", "adrr": ":9090"}`), 0o600)
 	defer func() { _ = os.Remove(file) }()
 
-	_, err := cnfg.Parse(Config{}, cnfg.Decode[Config](json.Unmarshal, file, cnfg.Strict))
+	_, err := cnfg.Parse(Config{}, cnfg.File[Config](json.Unmarshal, file, cnfg.Strict))
 	fmt.Println(strings.TrimPrefix(err.Error(), file+": "))
 
-	cfg, err := cnfg.Parse(Config{}, cnfg.Decode[Config](json.Unmarshal, file))
+	cfg, err := cnfg.Parse(Config{}, cnfg.File[Config](json.Unmarshal, file))
 	fmt.Println(cfg.Addr, err)
 
 	// Output:
@@ -155,7 +155,7 @@ func ExampleOnUnknown() {
 	_ = os.WriteFile(file, []byte(`{"addr": ":8080", "adrr": ":9090", "workrs": 4}`), 0o600)
 	defer func() { _ = os.Remove(file) }()
 
-	cfg, err := cnfg.Parse(Config{}, cnfg.Decode[Config](json.Unmarshal, file, cnfg.OnUnknown(func(u cnfg.Unknown) error {
+	cfg, err := cnfg.Parse(Config{}, cnfg.File[Config](json.Unmarshal, file, cnfg.OnUnknown(func(u cnfg.Unknown) error {
 		fmt.Printf("ignoring %s=%v\n", u.Key, u.Value)
 		return nil
 	})))
@@ -188,7 +188,7 @@ func ExampleLogUnknown() {
 	_ = os.WriteFile(file, []byte(`{"addr": ":8080", "adrr": ":9090"}`), 0o600)
 	defer func() { _ = os.Remove(file) }()
 
-	cfg, err := cnfg.Parse(Config{}, cnfg.Decode[Config](json.Unmarshal, file, cnfg.LogUnknown))
+	cfg, err := cnfg.Parse(Config{}, cnfg.File[Config](json.Unmarshal, file, cnfg.LogUnknown))
 	fmt.Println(cfg.Addr, err)
 
 	// Output:

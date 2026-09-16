@@ -26,7 +26,7 @@ type Strictly struct {
 func strictFile(t *testing.T, content string) cnfg.Parser[Strictly] {
 	t.Helper()
 
-	return cnfg.Decode[Strictly](json.Unmarshal, writeFile(t, "strict.json", content), cnfg.Strict)
+	return cnfg.File[Strictly](json.Unmarshal, writeFile(t, "strict.json", content), cnfg.Strict)
 }
 
 func TestStrictFileAccepts(t *testing.T) {
@@ -73,7 +73,7 @@ func TestStrictFileRejects(t *testing.T) {
 func TestStrictFileIsOptIn(t *testing.T) {
 	file := writeFile(t, "lenient.json", `{"addr": ":1", "worker_cont": 8}`)
 
-	if _, err := cnfg.Parse(Strictly{}, cnfg.Decode[Strictly](json.Unmarshal, file)); err != nil {
+	if _, err := cnfg.Parse(Strictly{}, cnfg.File[Strictly](json.Unmarshal, file)); err != nil {
 		t.Errorf("extra keys are fine without the option: %v", err)
 	}
 }
@@ -104,7 +104,7 @@ func TestStrictEnvNeedsPrefix(t *testing.T) {
 func TestStrictDir(t *testing.T) {
 	dir := writeDir(t, map[string]string{"10-base.conf": `{"addr": ":1"}`, "20-typo.conf": `{"adrr": ":2"}`})
 
-	_, err := cnfg.Parse(Strictly{}, cnfg.DecodeDir[Strictly](json.Unmarshal, dir, cnfg.Strict))
+	_, err := cnfg.Parse(Strictly{}, cnfg.Glob[Strictly](json.Unmarshal, filepath.Join(dir, "*.conf"), cnfg.Strict))
 	if !errors.Is(err, cnfg.ErrUnknownField) {
 		t.Fatalf("got %v, want ErrUnknownField", err)
 	}
@@ -128,12 +128,12 @@ type Common struct {
 func TestStrictEmbeddedAndPointers(t *testing.T) {
 	file := writeFile(t, "embedded.json", `{"log-level": "warn", "addr": ":1", "server": {"TLSCert": "a.pem"}, "extra": {"max_conns": 2}}`)
 
-	if _, err := cnfg.Parse(StrictEmbedded{}, cnfg.Decode[StrictEmbedded](json.Unmarshal, file, cnfg.Strict)); err != nil {
+	if _, err := cnfg.Parse(StrictEmbedded{}, cnfg.File[StrictEmbedded](json.Unmarshal, file, cnfg.Strict)); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	typo := writeFile(t, "typo.json", `{"log-lvl": "warn"}`)
-	_, err := cnfg.Parse(StrictEmbedded{}, cnfg.Decode[StrictEmbedded](json.Unmarshal, typo, cnfg.Strict))
+	_, err := cnfg.Parse(StrictEmbedded{}, cnfg.File[StrictEmbedded](json.Unmarshal, typo, cnfg.Strict))
 	if !errors.Is(err, cnfg.ErrUnknownField) {
 		t.Fatalf("got %v, want ErrUnknownField", err)
 	}
@@ -149,7 +149,7 @@ func TestOnUnknownCollects(t *testing.T) {
 	})
 
 	cfg, err := cnfg.Parse(Strictly{},
-		cnfg.Decode[Strictly](json.Unmarshal, file, collect),
+		cnfg.File[Strictly](json.Unmarshal, file, collect),
 		cnfg.EnvFrom[Strictly]("APP", []string{"APP_ADDR=:2", "APP_ADRR=:3"}, collect),
 	)
 	if err != nil {
@@ -181,7 +181,7 @@ func TestOnUnknownStaysQuietWhenThereIsNothing(t *testing.T) {
 	})
 
 	if _, err := cnfg.Parse(Strictly{},
-		cnfg.Decode[Strictly](json.Unmarshal, file, count),
+		cnfg.File[Strictly](json.Unmarshal, file, count),
 		cnfg.EnvFrom[Strictly]("APP", []string{"APP_ADDR=:2"}, count),
 	); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -193,7 +193,7 @@ func TestOnUnknownErrorStopsTheParse(t *testing.T) {
 	file := writeFile(t, "extras.json", `{"worker_cont": 8}`)
 	errMine := errors.New("not having it")
 
-	_, err := cnfg.Parse(Strictly{}, cnfg.Decode[Strictly](json.Unmarshal, file, cnfg.OnUnknown(func(cnfg.Unknown) error {
+	_, err := cnfg.Parse(Strictly{}, cnfg.File[Strictly](json.Unmarshal, file, cnfg.OnUnknown(func(cnfg.Unknown) error {
 		return errMine
 	})))
 	if !errors.Is(err, errMine) {
@@ -209,7 +209,7 @@ func TestOnUnknownPerFileInDir(t *testing.T) {
 	})
 
 	var sources []string
-	_, err := cnfg.Parse(Strictly{}, cnfg.DecodeDir[Strictly](json.Unmarshal, dir, cnfg.OnUnknown(func(u cnfg.Unknown) error {
+	_, err := cnfg.Parse(Strictly{}, cnfg.Glob[Strictly](json.Unmarshal, filepath.Join(dir, "*.conf"), cnfg.OnUnknown(func(u cnfg.Unknown) error {
 		sources = append(sources, filepath.Base(u.Source)+":"+u.Key)
 		return nil
 	})))
@@ -229,7 +229,7 @@ func TestLogUnknown(t *testing.T) {
 
 	file := writeFile(t, "logged.json", `{"addr": ":1", "worker_cont": 8}`)
 
-	cfg, err := cnfg.Parse(Strictly{}, cnfg.Decode[Strictly](json.Unmarshal, file, cnfg.LogUnknown))
+	cfg, err := cnfg.Parse(Strictly{}, cnfg.File[Strictly](json.Unmarshal, file, cnfg.LogUnknown))
 	if err != nil {
 		t.Fatalf("logging should not stop the parse: %v", err)
 	}

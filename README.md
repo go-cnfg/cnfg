@@ -28,7 +28,7 @@ func main() {
         Addr:    ":8080",
         Timeout: 5 * time.Second,
     },
-        cnfg.Optional(cnfg.Decode[Config](json.Unmarshal, "/etc/app/config.json")),
+        cnfg.File[Config](json.Unmarshal, "/etc/app/config.json"),
         cnfg.Env[Config]("APP"),
         cnfg.Flags[Config](),
     )
@@ -99,11 +99,9 @@ of your config together with the error when a parser fails.
 | `EnvFrom[T](prefix, environ)` | Environment variables, from the given `KEY=VALUE` list. |
 | `Flags[T]()` | Command line flags, from `os.Args[1:]`. |
 | `FlagSet[T](set, args)` | Command line flags, from your own flag set and args. |
-| `Decode[T](dec, path)` | Config file at path, decoded with dec. |
-| `DecodeGlob[T](dec, pattern)` | Every file matching the glob, in lexical order. |
-| `DecodeDir[T](dec, dir)` | Every `.conf` file of a drop-in directory. |
-| `DecodeFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
-| `Optional(p)` | Wraps a parser so that a missing file is not an error. |
+| `File[T](dec, path)` | Config file at path, decoded with dec. |
+| `Glob[T](dec, pattern)` | Every file matching the glob, in lexical order. |
+| `FileFromFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
 
 `Env`, `EnvFrom` and all four file parsers take options as last arguments, see
 [extra keys](#extra-keys).
@@ -140,31 +138,32 @@ ignores case, dashes and underscores. `{"server": {"tls-cert": "a.pem"}}` and
 
 ## Config files
 
-`Decode` takes the function that decodes the bytes into a `*map[string]any`, which is what
+`File` takes the function that decodes the bytes into a `*map[string]any`, which is what
 `encoding/json`, `go.yaml.in/yaml/v3` and `github.com/BurntSushi/toml` all give you, so the
 format is simply the library you already import:
 
 ```go
 import "go.yaml.in/yaml/v3"
 
-cfg, err := cnfg.Parse(defaults, cnfg.Optional(cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml")))
+cfg, err := cnfg.Parse(defaults, cnfg.File[Config](yaml.Unmarshal, "/etc/app/config.yaml"))
 ```
 
-`Optional` turns a missing file into a no op, without it a missing file is an error wrapping
-`fs.ErrNotExist`. Anything with that signature works, so a format cnfg has never heard of
-needs no support from cnfg:
+A config file that is not there is a no op, since that is the one source allowed to be
+missing, and your defaults are the config in that case. A file that is there but cannot be
+read or decoded is still an error, wrapping `ErrReadFile` or `ErrDecodeFile`.
+
+Anything with that signature works, so a format cnfg has never heard of needs no support from
+cnfg:
 
 ```go
-cfg, err := cnfg.Parse(defaults, cnfg.Decode[Config](hcl.Unmarshal, "/etc/app/config.hcl"))
+cfg, err := cnfg.Parse(defaults, cnfg.File[Config](hcl.Unmarshal, "/etc/app/config.hcl"))
 ```
 
 Values from files go through the same parsing as env vars and flags, so a duration is written
-as `"30s"` and a `net.IP` as `"10.0.0.1"` in every source. A file that fails to decode stops
-the parse with an error wrapping `ErrDecodeFile`, and one that cannot be read wraps
-`ErrReadFile`.
+as `"30s"` and a `net.IP` as `"10.0.0.1"` in every source.
 
-To let the user point at a config file with a flag, give `DecodeFlag` and `FlagSet` the same
-flag set and args. `DecodeFlag` registers the flag and reads the file before the other sources,
+To let the user point at a config file with a flag, give `FileFromFlag` and `FlagSet` the same
+flag set and args. `FileFromFlag` registers the flag and reads the file before the other sources,
 so the file is loaded even though it was named on the command line:
 
 ```go
@@ -172,7 +171,7 @@ set := flag.NewFlagSet("app", flag.ContinueOnError)
 args := os.Args[1:]
 
 cfg, err := cnfg.Parse(defaults,
-    cnfg.DecodeFlag[Config](json.Unmarshal, set, "config", args),
+    cnfg.FileFromFlag[Config](json.Unmarshal, set, "config", args),
     cnfg.Env[Config]("APP"),
     cnfg.FlagSet[Config](set, args),
 )
@@ -180,16 +179,16 @@ cfg, err := cnfg.Parse(defaults,
 
 ## Drop-in directories
 
-`DecodeDir` reads a whole `conf.d` directory the way the rest of `/etc` does: every `.conf`
-file in it, in lexical order, each one on top of the last. A directory that is not there is a
-no op, so the usual base file plus drop-ins looks like this:
+`Glob` reads a whole `conf.d` directory the way the rest of `/etc` does: every file the
+pattern matches, in lexical order, each one on top of the last. A directory that is not there
+is a no op like a missing file, so the usual base file plus drop-ins looks like this:
 
 ```go
 import "go.yaml.in/yaml/v3"
 
 cfg, err := cnfg.Parse(defaults,
-    cnfg.Optional(cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml")),
-    cnfg.DecodeDir[Config](yaml.Unmarshal, "/etc/app/config.d"),
+    cnfg.File[Config](yaml.Unmarshal, "/etc/app/config.yaml"),
+    cnfg.Glob[Config](yaml.Unmarshal, "/etc/app/config.d/*.conf"),
     cnfg.Env[Config]("APP"),
     cnfg.Flags[Config](),
 )
@@ -202,8 +201,7 @@ cfg, err := cnfg.Parse(defaults,
 ```
 
 Number the files the way sysctl.d and systemd drop-ins do, since the last one to set a field
-wins. `DecodeDir` is `DecodeGlob` with the usual `*.conf` pattern, so reach for `DecodeGlob`
-when the files are named something else, `cnfg.DecodeGlob[Config](yaml.Unmarshal, "/etc/app/config.d/*.yaml")`.
+wins. `.conf` is what `/etc` uses, but the pattern is yours, so `*.yaml` works just as well.
 
 ## Extra keys
 
@@ -213,7 +211,7 @@ anything it cannot place:
 
 ```go
 cfg, err := cnfg.Parse(defaults,
-    cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml", cnfg.Strict),
+    cnfg.File[Config](yaml.Unmarshal, "/etc/app/config.yaml", cnfg.Strict),
     cnfg.Env[Config]("APP", cnfg.Strict),
     cnfg.Flags[Config](),
 )
@@ -240,7 +238,7 @@ extras := cnfg.OnUnknown(func(u cnfg.Unknown) error {
 })
 
 cfg, err := cnfg.Parse(defaults,
-    cnfg.DecodeDir[Config](yaml.Unmarshal, "/etc/app/config.d", extras),
+    cnfg.Glob[Config](yaml.Unmarshal, "/etc/app/config.d/*.conf", extras),
     cnfg.Env[Config]("APP", extras),
 )
 ```
