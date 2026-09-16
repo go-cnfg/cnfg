@@ -86,7 +86,7 @@ func normalize(cfg Config) (Config, error) {
     return cfg, nil
 }
 
-cfg, err := cnfg.Parse(defaults, cnfg.Env[Config]("APP"), cnfg.Flags[Config](), normalize)
+cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.Env[Config]("APP"), cnfg.Flags[Config](), normalize)
 ```
 
 Fields that no parser touched keep the value they had in defaults, so there is no need to
@@ -145,7 +145,7 @@ format is simply the library you already import:
 ```go
 import "go.yaml.in/yaml/v3"
 
-cfg, err := cnfg.Parse(defaults, cnfg.File[Config](yaml.Unmarshal, "/etc/app/config.yaml"))
+cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.File[Config](yaml.Unmarshal, "/etc/app/config.yaml"))
 ```
 
 A config file that is not there is a no op, since that is the one source allowed to be
@@ -156,7 +156,7 @@ Anything with that signature works, so a format cnfg has never heard of needs no
 cnfg:
 
 ```go
-cfg, err := cnfg.Parse(defaults, cnfg.File[Config](hcl.Unmarshal, "/etc/app/config.hcl"))
+cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.File[Config](hcl.Unmarshal, "/etc/app/config.hcl"))
 ```
 
 Values from files go through the same parsing as env vars and flags, so a duration is written
@@ -170,7 +170,7 @@ so the file is loaded even though it was named on the command line:
 set := flag.NewFlagSet("app", flag.ContinueOnError)
 args := os.Args[1:]
 
-cfg, err := cnfg.Parse(defaults,
+cfg, err := cnfg.Parse(Config{Addr: ":8080"},
     cnfg.FileFromFlag[Config](json.Unmarshal, set, "config", args),
     cnfg.Env[Config]("APP"),
     cnfg.FlagSet[Config](set, args),
@@ -186,7 +186,7 @@ is a no op like a missing file, so the usual base file plus drop-ins looks like 
 ```go
 import "go.yaml.in/yaml/v3"
 
-cfg, err := cnfg.Parse(defaults,
+cfg, err := cnfg.Parse(Config{Addr: ":8080"},
     cnfg.File[Config](yaml.Unmarshal, "/etc/app/config.yaml"),
     cnfg.Glob[Config](yaml.Unmarshal, "/etc/app/config.d/*.conf"),
     cnfg.Env[Config]("APP"),
@@ -211,7 +211,7 @@ several programs read and unfriendly to a typo. Every source that can have extra
 `FileFromFlagStrict`, `EnvStrict` and `EnvFromStrict`.
 
 ```go
-cfg, err := cnfg.Parse(defaults,
+cfg, err := cnfg.Parse(Config{Addr: ":8080"},
     cnfg.FileStrict[Config](yaml.Unmarshal, "/etc/app/config.yaml"),
     cnfg.EnvStrict[Config]("APP"),
     cnfg.Flags[Config](),
@@ -264,7 +264,7 @@ func validate(cfg Config) (Config, error) {
     return cfg, nil
 }
 
-cfg, err := cnfg.Parse(defaults, cnfg.Env[Config]("APP"), cnfg.Flags[Config](), validate)
+cfg, err := cnfg.Parse(Config{Workers: 4}, cnfg.Env[Config]("APP"), cnfg.Flags[Config](), validate)
 ```
 
 Rules that live in struct tags come from [github.com/go-cnfg/validator](https://github.com/go-cnfg/validator),
@@ -280,7 +280,12 @@ type Config struct {
     Timeout time.Duration `validate:"min=1s"`
 }
 
-cfg, err := cnfg.Parse(defaults,
+cfg, err := cnfg.Parse(Config{
+    Addr:    ":8080",
+    Workers: 4,
+    Level:   "info",
+    Timeout: 30 * time.Second,
+},
     cnfg.Env[Config]("APP"),
     cnfg.Flags[Config](),
     validator.Validate[Config](),
@@ -311,7 +316,7 @@ Usage of app:
 is the normal way to exit with status 0:
 
 ```go
-cfg, err := cnfg.Parse(defaults, cnfg.Flags[Config]())
+cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.Flags[Config]())
 if errors.Is(err, flag.ErrHelp) {
     return
 }
@@ -323,10 +328,42 @@ of your own or read the positional args that were left over:
 ```go
 set := flag.NewFlagSet("app", flag.ContinueOnError)
 
-cfg, err := cnfg.Parse(defaults, cnfg.FlagSet[Config](set, os.Args[1:]))
+cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.FlagSet[Config](set, os.Args[1:]))
 if err != nil {
     log.Fatal(err)
 }
 
 log.Println(set.Args())
 ```
+
+Flag parsing is a parser like any other, so a library with a different flavor of flags takes the
+same place in the chain. With [go-flags](https://github.com/jessevdk/go-flags) the flags come
+from its own struct tags, and a plain function wraps the parse:
+
+```go
+import "github.com/jessevdk/go-flags"
+
+type Config struct {
+    Addr    string        `long:"addr" description:"address to listen on"`
+    Timeout time.Duration `long:"timeout" description:"request timeout"`
+    Debug   bool          `long:"debug" description:"enable debug logging"`
+}
+
+func goFlags(cfg Config) (Config, error) {
+    _, err := flags.ParseArgs(&cfg, os.Args[1:])
+    return cfg, err
+}
+
+cfg, err := cnfg.Parse(Config{Addr: ":8080"},
+    cnfg.File[Config](json.Unmarshal, "/etc/app/config.json"),
+    cnfg.Env[Config]("APP"),
+    goFlags,
+)
+if flags.WroteHelp(err) {
+    return
+}
+```
+
+go-flags leaves a field alone when its flag was not given, so the values from the file and the
+env vars come through the way they do with `Flags`, and `--help` is spotted with `flags.WroteHelp`
+the way `flag.ErrHelp` is with `errors.Is`.
