@@ -32,6 +32,8 @@ const (
 	ErrInvalidValue    = strerr.Error("invalid value")
 	ErrParseFlags      = strerr.Error("failed to parse flags")
 	ErrUnsupportedType = strerr.Error("unsupported type")
+	ErrUnknownField    = strerr.Error("no field for")
+	ErrNoPrefix        = strerr.Error("strict env needs a prefix")
 )
 
 // Decoder decodes config file contents into a *map[string]any, which is then applied

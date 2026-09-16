@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-cnfg/cnfg"
@@ -122,4 +123,24 @@ func ExampleDecodeGlob() {
 	)
 	fmt.Printf("%+v %v\n", cfg, err)
 	// Output: {Addr::9999 Timeout:1m0s Debug:false} <nil>
+}
+
+func ExampleStrict() {
+	type Config struct {
+		Addr string
+	}
+
+	file := filepath.Join(os.TempDir(), "cnfg-strict.json")
+	_ = os.WriteFile(file, []byte(`{"addr": ":8080", "adrr": ":9090"}`), 0o600)
+	defer func() { _ = os.Remove(file) }()
+
+	_, err := cnfg.Parse(Config{}, cnfg.Decode[Config](json.Unmarshal, file, cnfg.Strict()))
+	fmt.Println(strings.TrimPrefix(err.Error(), file+": "))
+
+	cfg, err := cnfg.Parse(Config{}, cnfg.Decode[Config](json.Unmarshal, file))
+	fmt.Println(cfg.Addr, err)
+
+	// Output:
+	// no field for adrr
+	// :8080 <nil>
 }
