@@ -157,7 +157,7 @@ func TestBrokenFileIsStillAnError(t *testing.T) {
 	}
 }
 
-func TestDecodeFlagNotStruct(t *testing.T) {
+func TestFileFromFlagNotStruct(t *testing.T) {
 	set := flag.NewFlagSet("test", flag.ContinueOnError)
 	set.SetOutput(io.Discard)
 
