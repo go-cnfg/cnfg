@@ -2,6 +2,7 @@ package cnfg
 
 import (
 	"fmt"
+	"log/slog"
 	"reflect"
 	"slices"
 	"strings"
@@ -45,6 +46,17 @@ func OnUnknown(fn func(Unknown) error) Option {
 //	cnfg.Env[Config]("APP", cnfg.Strict)
 var Strict = OnUnknown(func(u Unknown) error {
 	return fmt.Errorf("%s: %w %s", u.Source, ErrUnknownField, u.Key)
+})
+
+// LogUnknown is OnUnknown with a handler that logs every key it could not place with
+// the default slog logger and lets the parse go on:
+//
+//	cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml", cnfg.LogUnknown)
+//
+// The value is left out of the log on purpose, a mistyped key can still carry a secret.
+var LogUnknown = OnUnknown(func(u Unknown) error {
+	slog.Warn("config key with no field", "source", u.Source, "key", u.Key)
+	return nil
 })
 
 func newOptions(opts []Option) options {

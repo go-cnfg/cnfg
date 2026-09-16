@@ -1,8 +1,10 @@
 package cnfg_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -215,4 +217,31 @@ func TestOnUnknownPerFileInDir(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	assertEqual(t, "one report per key, per file", "20-typo.conf:adrr, 30-other.conf:nope", strings.Join(sources, ", "))
+}
+
+func TestLogUnknown(t *testing.T) {
+	buf := &bytes.Buffer{}
+	logger := slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{ReplaceAttr: dropTime}))
+
+	old := slog.Default()
+	slog.SetDefault(logger)
+	t.Cleanup(func() { slog.SetDefault(old) })
+
+	file := writeFile(t, "logged.json", `{"addr": ":1", "worker_cont": 8}`)
+
+	cfg, err := cnfg.Parse(Strictly{}, cnfg.Decode[Strictly](json.Unmarshal, file, cnfg.LogUnknown))
+	if err != nil {
+		t.Fatalf("logging should not stop the parse: %v", err)
+	}
+	assertEqual(t, "parsing went on", ":1", cfg.Addr)
+
+	want := `level=WARN msg="config key with no field" source=` + file + " key=worker_cont\n"
+	assertEqual(t, "log line", want, buf.String())
+}
+
+func dropTime(_ []string, a slog.Attr) slog.Attr {
+	if a.Key == slog.TimeKey {
+		return slog.Attr{}
+	}
+	return a
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -163,5 +164,34 @@ func ExampleOnUnknown() {
 	// Output:
 	// ignoring adrr=:9090
 	// ignoring workrs=4
+	// :8080 <nil>
+}
+
+func ExampleLogUnknown() {
+	type Config struct {
+		Addr string
+	}
+
+	old := slog.Default()
+	defer slog.SetDefault(old)
+
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey || a.Key == "source" {
+				return slog.Attr{}
+			}
+			return a
+		},
+	})))
+
+	file := filepath.Join(os.TempDir(), "cnfg-logged.json")
+	_ = os.WriteFile(file, []byte(`{"addr": ":8080", "adrr": ":9090"}`), 0o600)
+	defer func() { _ = os.Remove(file) }()
+
+	cfg, err := cnfg.Parse(Config{}, cnfg.Decode[Config](json.Unmarshal, file, cnfg.LogUnknown))
+	fmt.Println(cfg.Addr, err)
+
+	// Output:
+	// level=WARN msg="config key with no field" key=adrr
 	// :8080 <nil>
 }

@@ -247,8 +247,21 @@ cfg, err := cnfg.Parse(defaults,
 
 `Source` is the file the key came from, or the env prefix it was looked up with, so a drop-in
 directory reports the file that carries the typo. `Value` is what the file or the environment
-had under that key, and the keys of one source arrive in order. `cnfg.Strict` is the same hook
-with a handler that returns the error above.
+had under that key, and the keys of one source arrive in order.
+
+Two handlers come ready made, both of them `OnUnknown` with a function in it:
+
+| Option | Does |
+| --- | --- |
+| `cnfg.Strict` | Ends the parse on the first key, with the error above. |
+| `cnfg.LogUnknown` | Warns about every key with the default `slog` logger and goes on. |
+
+```
+level=WARN msg="config key with no field" source=/etc/app/config.yaml key=worker_cont
+```
+
+`LogUnknown` leaves the value out of the log on purpose, a mistyped key can still carry a
+secret.
 
 For env vars the prefix is what tells yours from the rest of the environment, so `APP_ADRR` is
 reported while `PATH` is not, and an `Env` that reports extras without a prefix fails with
