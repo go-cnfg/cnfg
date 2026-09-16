@@ -10,18 +10,18 @@ import (
 )
 
 // Flags parses os.Args[1:] into the config.
-func Flags[T any]() Parser[T] {
-	return FlagSet[T](flag.NewFlagSet(filepath.Base(os.Args[0]), flag.ContinueOnError), os.Args[1:])
+func Flags() Parser {
+	return FlagSet(flag.NewFlagSet(filepath.Base(os.Args[0]), flag.ContinueOnError), os.Args[1:])
 }
 
 // FlagSet parses args with the given flag set. Flags that were registered before are left alone,
 // and the positional args are available with set.Args() once Parse is done.
 // The error wraps ErrParseFlags, and flag.ErrHelp when the user asked for the usage output.
-func FlagSet[T any](set *flag.FlagSet, args []string) Parser[T] {
-	return func(cfg T) (T, error) {
-		ff, err := configFields(&cfg)
+func FlagSet(set *flag.FlagSet, args []string) Parser {
+	return func(cfg any) error {
+		ff, err := configFields(cfg)
 		if err != nil {
-			return cfg, err
+			return err
 		}
 
 		set.Usage = usageFunc(set, ff)
@@ -30,9 +30,9 @@ func FlagSet[T any](set *flag.FlagSet, args []string) Parser[T] {
 		}
 
 		if err := set.Parse(args); err != nil {
-			return cfg, fmt.Errorf("%w: %w", ErrParseFlags, err)
+			return fmt.Errorf("%w: %w", ErrParseFlags, err)
 		}
-		return cfg, nil
+		return nil
 	}
 }
 

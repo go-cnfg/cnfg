@@ -44,7 +44,7 @@ type Types struct {
 }
 
 func TestTypesFromFlags(t *testing.T) {
-	cfg, err := cnfg.Parse(Types{}, flags[Types](
+	cfg, err := cnfg.Parse(Types{}, flags(
 		"-int8", "-8",
 		"-uint", "0x10",
 		"-f32", "1.25",
@@ -82,7 +82,7 @@ func TestTypesFromFile(t *testing.T) {
 		"unknown": true
 	}`)
 
-	cfg, err := cnfg.Parse(Types{}, cnfg.Decode[Types](json.Unmarshal, file))
+	cfg, err := cnfg.Parse(Types{}, cnfg.Decode(json.Unmarshal, file))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestInvalidFileValues(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			file := writeFile(t, "types.json", tc.content)
-			_, err := cnfg.Parse(Types{}, cnfg.Decode[Types](json.Unmarshal, file))
+			_, err := cnfg.Parse(Types{}, cnfg.Decode(json.Unmarshal, file))
 			if !errors.Is(err, cnfg.ErrDecodeFile) {
 				t.Fatalf("got %v, want ErrDecodeFile", err)
 			}
@@ -127,7 +127,7 @@ func TestInvalidFileValues(t *testing.T) {
 }
 
 func TestEnvSlices(t *testing.T) {
-	cfg, err := cnfg.Parse(Types{Nums: []int{9}}, env[Types]("NUMS="))
+	cfg, err := cnfg.Parse(Types{Nums: []int{9}}, env("NUMS="))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

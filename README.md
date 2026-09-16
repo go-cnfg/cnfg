@@ -28,9 +28,9 @@ func main() {
         Addr:    ":8080",
         Timeout: 5 * time.Second,
     },
-        cnfg.Optional(cnfg.Decode[Config](json.Unmarshal, "/etc/app/config.json")),
-        cnfg.Env[Config]("APP"),
-        cnfg.Flags[Config](),
+        cnfg.Optional(cnfg.Decode(json.Unmarshal, "/etc/app/config.json")),
+        cnfg.Env("APP"),
+        cnfg.Flags(),
     )
     if err != nil {
         log.Fatal(err)
@@ -68,14 +68,15 @@ a module of its own that wraps go-playground/validator as a parser.
 
 ## Parsers
 
-A parser is anything that takes a config and gives back a config:
+A parser is anything that fills the config it is given:
 
 ```go
-type Parser[T any] func(T) (T, error)
+type Parser func(cfg any) error
 ```
 
-`Env`, `Flags` and the file parsers are parsers that happen to read a source, and your own
-validation or post processing fits in the same chain:
+The config a parser is handed is the pointer to your struct, which is what lets one parser
+type read any config. Your own validation or post processing is written against your type and
+wrapped with `Typed`:
 
 ```go
 func normalize(cfg Config) (Config, error) {
@@ -86,8 +87,11 @@ func normalize(cfg Config) (Config, error) {
     return cfg, nil
 }
 
-cfg, err := cnfg.Parse(defaults, cnfg.Env[Config]("APP"), cnfg.Flags[Config](), normalize)
+cfg, err := cnfg.Parse(defaults, cnfg.Env("APP"), cnfg.Flags(), cnfg.Typed(normalize))
 ```
+
+`Parse` is the only place a type shows up, and it reads it from the defaults you pass, so no
+call in a normal program spells the config type out.
 
 Fields that no parser touched keep the value they had in defaults, so there is no need to
 repeat the defaults in a file or to guard against empty values. `Parse` returns the zero value
@@ -95,15 +99,16 @@ of your config together with the error when a parser fails.
 
 | Parser | Reads |
 | --- | --- |
-| `Env[T](prefix)` | Environment variables, from `os.Environ()`. |
-| `EnvFrom[T](prefix, environ)` | Environment variables, from the given `KEY=VALUE` list. |
-| `Flags[T]()` | Command line flags, from `os.Args[1:]`. |
-| `FlagSet[T](set, args)` | Command line flags, from your own flag set and args. |
-| `Decode[T](dec, path)` | Config file at path, decoded with dec. |
-| `DecodeGlob[T](dec, pattern)` | Every file matching the glob, in lexical order. |
-| `DecodeDir[T](dec, dir)` | Every `.conf` file of a drop-in directory. |
-| `DecodeFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
+| `Env(prefix)` | Environment variables, from `os.Environ()`. |
+| `EnvFrom(prefix, environ)` | Environment variables, from the given `KEY=VALUE` list. |
+| `Flags()` | Command line flags, from `os.Args[1:]`. |
+| `FlagSet(set, args)` | Command line flags, from your own flag set and args. |
+| `Decode(dec, path)` | Config file at path, decoded with dec. |
+| `DecodeGlob(dec, pattern)` | Every file matching the glob, in lexical order. |
+| `DecodeDir(dec, dir)` | Every `.conf` file of a drop-in directory. |
+| `DecodeFlag(dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
 | `Optional(p)` | Wraps a parser so that a missing file is not an error. |
+| `Typed(fn)` | Turns your own `func(Config) (Config, error)` into a parser. |
 
 `Env`, `EnvFrom` and all four file parsers take options as last arguments, see
 [extra keys](#extra-keys).
@@ -147,7 +152,7 @@ format is simply the library you already import:
 ```go
 import "go.yaml.in/yaml/v3"
 
-cfg, err := cnfg.Parse(defaults, cnfg.Optional(cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml")))
+cfg, err := cnfg.Parse(defaults, cnfg.Optional(cnfg.Decode(yaml.Unmarshal, "/etc/app/config.yaml")))
 ```
 
 `Optional` turns a missing file into a no op, without it a missing file is an error wrapping
@@ -155,7 +160,7 @@ cfg, err := cnfg.Parse(defaults, cnfg.Optional(cnfg.Decode[Config](yaml.Unmarsha
 needs no support from cnfg:
 
 ```go
-cfg, err := cnfg.Parse(defaults, cnfg.Decode[Config](hcl.Unmarshal, "/etc/app/config.hcl"))
+cfg, err := cnfg.Parse(defaults, cnfg.Decode(hcl.Unmarshal, "/etc/app/config.hcl"))
 ```
 
 Values from files go through the same parsing as env vars and flags, so a duration is written
@@ -172,9 +177,9 @@ set := flag.NewFlagSet("app", flag.ContinueOnError)
 args := os.Args[1:]
 
 cfg, err := cnfg.Parse(defaults,
-    cnfg.DecodeFlag[Config](json.Unmarshal, set, "config", args),
-    cnfg.Env[Config]("APP"),
-    cnfg.FlagSet[Config](set, args),
+    cnfg.DecodeFlag(json.Unmarshal, set, "config", args),
+    cnfg.Env("APP"),
+    cnfg.FlagSet(set, args),
 )
 ```
 
@@ -188,10 +193,10 @@ no op, so the usual base file plus drop-ins looks like this:
 import "go.yaml.in/yaml/v3"
 
 cfg, err := cnfg.Parse(defaults,
-    cnfg.Optional(cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml")),
-    cnfg.DecodeDir[Config](yaml.Unmarshal, "/etc/app/config.d"),
-    cnfg.Env[Config]("APP"),
-    cnfg.Flags[Config](),
+    cnfg.Optional(cnfg.Decode(yaml.Unmarshal, "/etc/app/config.yaml")),
+    cnfg.DecodeDir(yaml.Unmarshal, "/etc/app/config.d"),
+    cnfg.Env("APP"),
+    cnfg.Flags(),
 )
 ```
 
@@ -203,7 +208,7 @@ cfg, err := cnfg.Parse(defaults,
 
 Number the files the way sysctl.d and systemd drop-ins do, since the last one to set a field
 wins. `DecodeDir` is `DecodeGlob` with the usual `*.conf` pattern, so reach for `DecodeGlob`
-when the files are named something else, `cnfg.DecodeGlob[Config](yaml.Unmarshal, "/etc/app/config.d/*.yaml")`.
+when the files are named something else, `cnfg.DecodeGlob(yaml.Unmarshal, "/etc/app/config.d/*.yaml")`.
 
 ## Extra keys
 
@@ -213,9 +218,9 @@ anything it cannot place:
 
 ```go
 cfg, err := cnfg.Parse(defaults,
-    cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml", cnfg.Strict),
-    cnfg.Env[Config]("APP", cnfg.Strict),
-    cnfg.Flags[Config](),
+    cnfg.Decode(yaml.Unmarshal, "/etc/app/config.yaml", cnfg.Strict),
+    cnfg.Env("APP", cnfg.Strict),
+    cnfg.Flags(),
 )
 ```
 
@@ -240,8 +245,8 @@ extras := cnfg.OnUnknown(func(u cnfg.Unknown) error {
 })
 
 cfg, err := cnfg.Parse(defaults,
-    cnfg.DecodeDir[Config](yaml.Unmarshal, "/etc/app/config.d", extras),
-    cnfg.Env[Config]("APP", extras),
+    cnfg.DecodeDir(yaml.Unmarshal, "/etc/app/config.d", extras),
+    cnfg.Env("APP", extras),
 )
 ```
 
@@ -298,7 +303,7 @@ func validate(cfg Config) (Config, error) {
     return cfg, nil
 }
 
-cfg, err := cnfg.Parse(defaults, cnfg.Env[Config]("APP"), cnfg.Flags[Config](), validate)
+cfg, err := cnfg.Parse(defaults, cnfg.Env("APP"), cnfg.Flags(), cnfg.Typed(validate))
 ```
 
 Rules that live in struct tags come from [github.com/go-cnfg/validator](https://github.com/go-cnfg/validator),
@@ -315,13 +320,13 @@ type Config struct {
 }
 
 cfg, err := cnfg.Parse(defaults,
-    cnfg.Env[Config]("APP"),
-    cnfg.Flags[Config](),
-    validator.Validate[Config](),
+    cnfg.Env("APP"),
+    cnfg.Flags(),
+    validator.Validate(),
 )
 ```
 
-`validator.With[Config](v)` takes a validator you set up yourself, for your own rules or a
+`validator.With(v)` takes a validator you set up yourself, for your own rules or a
 different tag name. Put the check last so every source has been read, and remember that the
 parse stops there: `Parse` returns the zero value of your config together with the error.
 
@@ -347,7 +352,7 @@ Usage of app:
 is the normal way to exit with status 0:
 
 ```go
-cfg, err := cnfg.Parse(defaults, cnfg.Flags[Config]())
+cfg, err := cnfg.Parse(defaults, cnfg.Flags())
 if errors.Is(err, flag.ErrHelp) {
     return
 }
@@ -359,7 +364,7 @@ of your own or read the positional args that were left over:
 ```go
 set := flag.NewFlagSet("app", flag.ContinueOnError)
 
-cfg, err := cnfg.Parse(defaults, cnfg.FlagSet[Config](set, os.Args[1:]))
+cfg, err := cnfg.Parse(defaults, cnfg.FlagSet(set, os.Args[1:]))
 if err != nil {
     log.Fatal(err)
 }

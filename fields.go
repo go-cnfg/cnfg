@@ -37,13 +37,23 @@ func parseTag(sf reflect.StructField) tag {
 	return t
 }
 
-// configFields collects the leaf fields of the config struct behind cfg.
-func configFields[T any](cfg *T) ([]field, error) {
-	v := reflect.ValueOf(cfg).Elem()
+// configFields collects the leaf fields of the config struct behind cfg, which is the
+// pointer to your config that Parse hands every parser.
+func configFields(cfg any) ([]field, error) {
+	v := configValue(cfg)
 	if v.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("%w, got %T", ErrNotStruct, *cfg)
+		return nil, fmt.Errorf("%w, got %T", ErrNotStruct, cfg)
 	}
 	return fields(v)
+}
+
+// configValue is the struct behind the pointer a parser was given.
+func configValue(cfg any) reflect.Value {
+	v := reflect.ValueOf(cfg)
+	if v.Kind() != reflect.Pointer || v.IsNil() {
+		return reflect.Value{}
+	}
+	return v.Elem()
 }
 
 // fields collects every leaf value of the struct. Names of nested fields are joined with a dash,

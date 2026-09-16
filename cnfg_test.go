@@ -54,18 +54,18 @@ func defaults() Config {
 }
 
 // flags parses the given args with a quiet flag set.
-func flags[T any](args ...string) cnfg.Parser[T] {
+func flags(args ...string) cnfg.Parser {
 	set := flag.NewFlagSet("test", flag.ContinueOnError)
 	set.SetOutput(io.Discard)
-	return cnfg.FlagSet[T](set, args)
+	return cnfg.FlagSet(set, args)
 }
 
-func env[T any](environ ...string) cnfg.Parser[T] {
-	return cnfg.EnvFrom[T]("", environ)
+func env(environ ...string) cnfg.Parser {
+	return cnfg.EnvFrom("", environ)
 }
 
 func TestDefaultsAreKept(t *testing.T) {
-	cfg, err := cnfg.Parse(defaults(), env[Config](), flags[Config]())
+	cfg, err := cnfg.Parse(defaults(), env(), flags())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -94,9 +94,9 @@ func TestPrecedence(t *testing.T) {
 	}`)
 
 	cfg, err := cnfg.Parse(defaults(),
-		cnfg.Decode[Config](json.Unmarshal, file),
-		env[Config]("ADDR=:2222", "WORKER_COUNT=2", "TIMEOUT=2m"),
-		flags[Config]("-addr", ":3333"),
+		cnfg.Decode(json.Unmarshal, file),
+		env("ADDR=:2222", "WORKER_COUNT=2", "TIMEOUT=2m"),
+		flags("-addr", ":3333"),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -115,8 +115,8 @@ func TestPrecedence(t *testing.T) {
 
 func TestParserOrder(t *testing.T) {
 	cfg, err := cnfg.Parse(defaults(),
-		flags[Config]("-addr", ":3333"),
-		env[Config]("ADDR=:2222"),
+		flags("-addr", ":3333"),
+		env("ADDR=:2222"),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -134,13 +134,13 @@ func TestCustomParser(t *testing.T) {
 		return cfg, nil
 	}
 
-	cfg, err := cnfg.Parse(defaults(), flags[Config]("-addr", "http://:1234"), validate)
+	cfg, err := cnfg.Parse(defaults(), flags("-addr", "http://:1234"), cnfg.Typed(validate))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	assertEqual(t, "parser applied", ":1234", cfg.Addr)
 
-	if _, err := cnfg.Parse(defaults(), flags[Config]("-addr", ""), validate); !errors.Is(err, errEmptyAddr) {
+	if _, err := cnfg.Parse(defaults(), flags("-addr", ""), cnfg.Typed(validate)); !errors.Is(err, errEmptyAddr) {
 		t.Errorf("got %v, want errEmptyAddr", err)
 	}
 }
@@ -159,7 +159,7 @@ func TestFile(t *testing.T) {
 		"limits": {"rps": 5}
 	}`)
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.Decode[Config](json.Unmarshal, file))
+	cfg, err := cnfg.Parse(defaults(), cnfg.Decode(json.Unmarshal, file))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -180,7 +180,7 @@ func TestFile(t *testing.T) {
 }
 
 func TestFlags(t *testing.T) {
-	cfg, err := cnfg.Parse(defaults(), flags[Config](
+	cfg, err := cnfg.Parse(defaults(), flags(
 		"-verbose",
 		"-timeout=250ms",
 		"-hosts", "a,b, c",
@@ -208,7 +208,7 @@ func TestFlags(t *testing.T) {
 }
 
 func TestEnv(t *testing.T) {
-	cfg, err := cnfg.Parse(defaults(), env[Config](
+	cfg, err := cnfg.Parse(defaults(), env(
 		"VERBOSE=true",
 		"HOSTS=a,b",
 		"IP=10.0.0.2",
@@ -236,7 +236,7 @@ func TestEnv(t *testing.T) {
 
 func TestEnvPrefix(t *testing.T) {
 	cfg, err := cnfg.Parse(defaults(),
-		cnfg.EnvFrom[Config]("app_", []string{"ADDR=:1111", "APP_ADDR=:2222"}),
+		cnfg.EnvFrom("app_", []string{"ADDR=:1111", "APP_ADDR=:2222"}),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -247,7 +247,7 @@ func TestEnvPrefix(t *testing.T) {
 func TestEnvFromProcess(t *testing.T) {
 	t.Setenv("APP_ADDR", ":7777")
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.Env[Config]("APP"))
+	cfg, err := cnfg.Parse(defaults(), cnfg.Env("APP"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -262,8 +262,8 @@ func TestFileFlag(t *testing.T) {
 	set.SetOutput(io.Discard)
 
 	cfg, err := cnfg.Parse(defaults(),
-		cnfg.DecodeFlag[Config](json.Unmarshal, set, "config", args),
-		cnfg.FlagSet[Config](set, args),
+		cnfg.DecodeFlag(json.Unmarshal, set, "config", args),
+		cnfg.FlagSet(set, args),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -281,8 +281,8 @@ func TestFileFlagMissing(t *testing.T) {
 	set.SetOutput(io.Discard)
 
 	cfg, err := cnfg.Parse(defaults(),
-		cnfg.DecodeFlag[Config](json.Unmarshal, set, "config", args),
-		cnfg.FlagSet[Config](set, args),
+		cnfg.DecodeFlag(json.Unmarshal, set, "config", args),
+		cnfg.FlagSet(set, args),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -293,11 +293,11 @@ func TestFileFlagMissing(t *testing.T) {
 func TestOptional(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "missing.json")
 
-	if _, err := cnfg.Parse(defaults(), cnfg.Optional(cnfg.Decode[Config](json.Unmarshal, missing))); err != nil {
+	if _, err := cnfg.Parse(defaults(), cnfg.Optional(cnfg.Decode(json.Unmarshal, missing))); err != nil {
 		t.Errorf("optional file should be ignored: %v", err)
 	}
 
-	_, err := cnfg.Parse(defaults(), cnfg.Decode[Config](json.Unmarshal, missing))
+	_, err := cnfg.Parse(defaults(), cnfg.Decode(json.Unmarshal, missing))
 	if !errors.Is(err, cnfg.ErrReadFile) {
 		t.Errorf("got %v, want ErrReadFile", err)
 	}
@@ -315,7 +315,7 @@ func TestCustomDecoder(t *testing.T) {
 		(*tree)[key] = val
 		return nil
 	}
-	cfg, err := cnfg.Parse(defaults(), cnfg.Decode[Config](decode, file))
+	cfg, err := cnfg.Parse(defaults(), cnfg.Decode(decode, file))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -325,32 +325,32 @@ func TestCustomDecoder(t *testing.T) {
 func TestErrors(t *testing.T) {
 	tests := []struct {
 		name   string
-		parser cnfg.Parser[Config]
+		parser cnfg.Parser
 		want   error
 	}{
 		{
 			name:   "invalid env value",
-			parser: env[Config]("WORKER_COUNT=many"),
+			parser: env("WORKER_COUNT=many"),
 			want:   cnfg.ErrInvalidValue,
 		},
 		{
 			name:   "invalid flag value",
-			parser: flags[Config]("-timeout", "soon"),
+			parser: flags("-timeout", "soon"),
 			want:   cnfg.ErrParseFlags,
 		},
 		{
 			name:   "unknown flag",
-			parser: flags[Config]("-nope"),
+			parser: flags("-nope"),
 			want:   cnfg.ErrParseFlags,
 		},
 		{
 			name:   "help",
-			parser: flags[Config]("-h"),
+			parser: flags("-h"),
 			want:   flag.ErrHelp,
 		},
 		{
 			name:   "broken file",
-			parser: cnfg.Decode[Config](json.Unmarshal, writeFile(t, "config.json", "{")),
+			parser: cnfg.Decode(json.Unmarshal, writeFile(t, "config.json", "{")),
 			want:   cnfg.ErrDecodeFile,
 		},
 	}
@@ -369,15 +369,15 @@ func TestErrors(t *testing.T) {
 }
 
 func TestNotStruct(t *testing.T) {
-	if _, err := cnfg.Parse(42, flags[int]()); !errors.Is(err, cnfg.ErrNotStruct) {
+	if _, err := cnfg.Parse(42, flags()); !errors.Is(err, cnfg.ErrNotStruct) {
 		t.Errorf("flags: got %v, want ErrNotStruct", err)
 	}
-	if _, err := cnfg.Parse(42, env[int]()); !errors.Is(err, cnfg.ErrNotStruct) {
+	if _, err := cnfg.Parse(42, env()); !errors.Is(err, cnfg.ErrNotStruct) {
 		t.Errorf("env: got %v, want ErrNotStruct", err)
 	}
 
 	file := writeFile(t, "config.json", "{}")
-	if _, err := cnfg.Parse(42, cnfg.Decode[int](json.Unmarshal, file)); !errors.Is(err, cnfg.ErrNotStruct) {
+	if _, err := cnfg.Parse(42, cnfg.Decode(json.Unmarshal, file)); !errors.Is(err, cnfg.ErrNotStruct) {
 		t.Errorf("file: got %v, want ErrNotStruct", err)
 	}
 }
@@ -388,7 +388,7 @@ func TestDuplicateName(t *testing.T) {
 		Host string `cnfg:"addr"`
 	}
 
-	if _, err := cnfg.Parse(dup{}, flags[dup]()); !errors.Is(err, cnfg.ErrDuplicateName) {
+	if _, err := cnfg.Parse(dup{}, flags()); !errors.Is(err, cnfg.ErrDuplicateName) {
 		t.Errorf("got %v, want ErrDuplicateName", err)
 	}
 }
@@ -406,8 +406,8 @@ func TestEmbedded(t *testing.T) {
 	file := writeFile(t, "config.json", `{"log-level": "warn", "name": "from-file"}`)
 
 	cfg, err := cnfg.Parse(Service{},
-		cnfg.Decode[Service](json.Unmarshal, file),
-		flags[Service]("-log-level", "debug"),
+		cnfg.Decode(json.Unmarshal, file),
+		flags("-log-level", "debug"),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -420,7 +420,7 @@ func TestFlagSetArgs(t *testing.T) {
 	set := flag.NewFlagSet("test", flag.ContinueOnError)
 	args := []string{"-addr", ":9999", "one", "two"}
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.FlagSet[Config](set, args))
+	cfg, err := cnfg.Parse(defaults(), cnfg.FlagSet(set, args))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -438,8 +438,8 @@ func TestUsage(t *testing.T) {
 	args := []string{"-h"}
 
 	_, _ = cnfg.Parse(defaults(),
-		cnfg.DecodeFlag[Config](json.Unmarshal, set, "config", args),
-		cnfg.FlagSet[Config](set, args),
+		cnfg.DecodeFlag(json.Unmarshal, set, "config", args),
+		cnfg.FlagSet(set, args),
 	)
 
 	for _, want := range []string{
@@ -463,7 +463,7 @@ func TestUsageWithoutName(t *testing.T) {
 	set := flag.NewFlagSet("", flag.ContinueOnError)
 	set.SetOutput(buf)
 
-	_, _ = cnfg.Parse(defaults(), cnfg.FlagSet[Config](set, []string{"-h"}))
+	_, _ = cnfg.Parse(defaults(), cnfg.FlagSet(set, []string{"-h"}))
 
 	if !strings.HasPrefix(buf.String(), "Usage:\n") {
 		t.Errorf("got %q", buf.String())
@@ -487,7 +487,7 @@ func assertEqual[T comparable](t *testing.T, msg string, want, got T) {
 }
 
 func TestEnvIsReadWhenTheParserRuns(t *testing.T) {
-	parser := cnfg.Env[Config]("APP")
+	parser := cnfg.Env("APP")
 	t.Setenv("APP_ADDR", ":7778")
 
 	cfg, err := cnfg.Parse(defaults(), parser)
@@ -495,4 +495,34 @@ func TestEnvIsReadWhenTheParserRuns(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	assertEqual(t, "env read at parse time", ":7778", cfg.Addr)
+}
+
+func TestTypedWrongConfig(t *testing.T) {
+	typed := cnfg.Typed(func(c Config) (Config, error) { return c, nil })
+
+	type Other struct{ Addr string }
+	if _, err := cnfg.Parse(Other{}, typed); !errors.Is(err, cnfg.ErrWrongConfig) {
+		t.Errorf("got %v, want ErrWrongConfig", err)
+	}
+}
+
+func TestTypedPassesTheErrorOn(t *testing.T) {
+	boom := errors.New("boom")
+	typed := cnfg.Typed(func(c Config) (Config, error) { return c, boom })
+
+	if _, err := cnfg.Parse(defaults(), typed); !errors.Is(err, boom) {
+		t.Errorf("got %v, want boom", err)
+	}
+}
+
+func TestParserNeedsAPointerToAStruct(t *testing.T) {
+	var missing *Config
+
+	for name, cfg := range map[string]any{"value": Config{}, "nil pointer": missing, "not a struct": new(int)} {
+		t.Run(name, func(t *testing.T) {
+			if err := cnfg.Env("APP")(cfg); !errors.Is(err, cnfg.ErrNotStruct) {
+				t.Errorf("got %v, want ErrNotStruct", err)
+			}
+		})
+	}
 }

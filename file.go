@@ -14,9 +14,9 @@ import (
 // Decode decodes the config file at path with dec on top of the config.
 // encoding/json, go.yaml.in/yaml/v3 and github.com/BurntSushi/toml all provide
 // an Unmarshal that can be used as dec, and so does anything with that signature.
-func Decode[T any](dec Decoder, path string, opts ...Option) Parser[T] {
+func Decode(dec Decoder, path string, opts ...Option) Parser {
 	o := newOptions(opts)
-	return func(cfg T) (T, error) {
+	return func(cfg any) error {
 		return decodeFile(cfg, dec, path, o)
 	}
 }
@@ -26,60 +26,59 @@ func Decode[T any](dec Decoder, path string, opts ...Option) Parser[T] {
 // convention of /etc, as in DecodeGlob[Config](yaml.Unmarshal, "/etc/app/config.d/*.conf"):
 // a file later in the listing wins, and a pattern that matches nothing is a no op,
 // so name the files 10-base.conf, 20-app.conf, 99-local.conf.
-func DecodeGlob[T any](dec Decoder, pattern string, opts ...Option) Parser[T] {
+func DecodeGlob(dec Decoder, pattern string, opts ...Option) Parser {
 	o := newOptions(opts)
-	return func(cfg T) (T, error) {
+	return func(cfg any) error {
 		paths, err := filepath.Glob(pattern)
 		if err != nil {
-			return cfg, fmt.Errorf("%w %s: %w", ErrReadFile, pattern, err)
+			return fmt.Errorf("%w %s: %w", ErrReadFile, pattern, err)
 		}
 
 		for _, path := range paths {
 			if info, err := os.Stat(path); err != nil || info.IsDir() {
 				continue
 			}
-			if cfg, err = decodeFile(cfg, dec, path, o); err != nil {
-				return cfg, err
+			if err := decodeFile(cfg, dec, path, o); err != nil {
+				return err
 			}
 		}
-		return cfg, nil
+		return nil
 	}
 }
 
 // DecodeDir decodes every .conf file in dir with dec on top of the config, which is the
 // drop-in directory convention of /etc. It is DecodeGlob with the usual pattern, so use
 // that one directly when the files are named something else.
-func DecodeDir[T any](dec Decoder, dir string, opts ...Option) Parser[T] {
-	return DecodeGlob[T](dec, filepath.Join(dir, "*.conf"), opts...)
+func DecodeDir(dec Decoder, dir string, opts ...Option) Parser {
+	return DecodeGlob(dec, filepath.Join(dir, "*.conf"), opts...)
 }
 
 // Optional turns a missing config file into a no op.
-func Optional[T any](p Parser[T]) Parser[T] {
-	return func(cfg T) (T, error) {
-		out, err := p(cfg)
-		if errors.Is(err, fs.ErrNotExist) {
-			return cfg, nil
+func Optional(p Parser) Parser {
+	return func(cfg any) error {
+		if err := p(cfg); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
 		}
-		return out, err
+		return nil
 	}
 }
 
 // DecodeFlag decodes the config file the user gave with the named flag, for example -config app.json.
 // The flag is registered in set, which should be the one given to FlagSet later on, and args are
 // scanned for it before any other source is read. It is a no op when the flag was not given.
-func DecodeFlag[T any](dec Decoder, set *flag.FlagSet, name string, args []string, opts ...Option) Parser[T] {
+func DecodeFlag(dec Decoder, set *flag.FlagSet, name string, args []string, opts ...Option) Parser {
 	set.String(name, "", "path to config file")
 	o := newOptions(opts)
 
-	return func(cfg T) (T, error) {
-		ff, err := configFields(&cfg)
+	return func(cfg any) error {
+		ff, err := configFields(cfg)
 		if err != nil {
-			return cfg, err
+			return err
 		}
 
 		path := pathFromArgs(set.Name(), name, args, ff)
 		if path == "" {
-			return cfg, nil
+			return nil
 		}
 		return decodeFile(cfg, dec, path, o)
 	}
@@ -101,27 +100,27 @@ func pathFromArgs(setName, name string, args []string, ff []field) string {
 	return *path
 }
 
-func decodeFile[T any](cfg T, dec Decoder, path string, o options) (T, error) {
-	v := reflect.ValueOf(&cfg).Elem()
+func decodeFile(cfg any, dec Decoder, path string, o options) error {
+	v := configValue(cfg)
 	if v.Kind() != reflect.Struct {
-		return cfg, fmt.Errorf("%w, got %T", ErrNotStruct, cfg)
+		return fmt.Errorf("%w, got %T", ErrNotStruct, cfg)
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return cfg, fmt.Errorf("%w %s: %w", ErrReadFile, path, err)
+		return fmt.Errorf("%w %s: %w", ErrReadFile, path, err)
 	}
 
 	tree := map[string]any{}
 	if err := dec(data, &tree); err != nil {
-		return cfg, fmt.Errorf("%w %s: %w", ErrDecodeFile, path, err)
+		return fmt.Errorf("%w %s: %w", ErrDecodeFile, path, err)
 	}
 	if err := assignStruct(v, tree); err != nil {
-		return cfg, fmt.Errorf("%w %s: %w", ErrDecodeFile, path, err)
+		return fmt.Errorf("%w %s: %w", ErrDecodeFile, path, err)
 	}
 
 	if o.onUnknown != nil {
-		return cfg, o.report(path, unknownKeys(v, tree, ""))
+		return o.report(path, unknownKeys(v, tree, ""))
 	}
-	return cfg, nil
+	return nil
 }

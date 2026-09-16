@@ -37,7 +37,7 @@ func TestDecodeGlob(t *testing.T) {
 		"notes.txt":      `{"addr": ":7777"}`,
 	})
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.DecodeGlob[Config](json.Unmarshal, filepath.Join(dir, "*.conf")))
+	cfg, err := cnfg.Parse(defaults(), cnfg.DecodeGlob(json.Unmarshal, filepath.Join(dir, "*.conf")))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestDecodeGlob(t *testing.T) {
 func TestDecodeGlobNoMatches(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "conf.d", "*.conf")
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.DecodeGlob[Config](json.Unmarshal, missing))
+	cfg, err := cnfg.Parse(defaults(), cnfg.DecodeGlob(json.Unmarshal, missing))
 	if err != nil {
 		t.Fatalf("a directory that is not there should be a no op: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestDecodeGlobSkipsDirs(t *testing.T) {
 		"20-sub.conf/x.txt": "",
 	})
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.DecodeGlob[Config](json.Unmarshal, filepath.Join(dir, "*.conf")))
+	cfg, err := cnfg.Parse(defaults(), cnfg.DecodeGlob(json.Unmarshal, filepath.Join(dir, "*.conf")))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestDecodeGlobBrokenFile(t *testing.T) {
 		"20-bad.conf":  "{",
 	})
 
-	_, err := cnfg.Parse(defaults(), cnfg.DecodeGlob[Config](json.Unmarshal, filepath.Join(dir, "*.conf")))
+	_, err := cnfg.Parse(defaults(), cnfg.DecodeGlob(json.Unmarshal, filepath.Join(dir, "*.conf")))
 	if !errors.Is(err, cnfg.ErrDecodeFile) {
 		t.Fatalf("got %v, want ErrDecodeFile", err)
 	}
@@ -87,7 +87,7 @@ func TestDecodeGlobBrokenFile(t *testing.T) {
 }
 
 func TestDecodeGlobBadPattern(t *testing.T) {
-	_, err := cnfg.Parse(defaults(), cnfg.DecodeGlob[Config](json.Unmarshal, "["))
+	_, err := cnfg.Parse(defaults(), cnfg.DecodeGlob(json.Unmarshal, "["))
 	if !errors.Is(err, cnfg.ErrReadFile) {
 		t.Errorf("got %v, want ErrReadFile", err)
 	}
@@ -100,7 +100,7 @@ func TestDecodeDir(t *testing.T) {
 		"notes.txt":     `{"addr": ":7777"}`,
 	})
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.DecodeDir[Config](json.Unmarshal, dir))
+	cfg, err := cnfg.Parse(defaults(), cnfg.DecodeDir(json.Unmarshal, dir))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestDecodeDir(t *testing.T) {
 }
 
 func TestDecodeDirMissing(t *testing.T) {
-	cfg, err := cnfg.Parse(defaults(), cnfg.DecodeDir[Config](json.Unmarshal, filepath.Join(t.TempDir(), "conf.d")))
+	cfg, err := cnfg.Parse(defaults(), cnfg.DecodeDir(json.Unmarshal, filepath.Join(t.TempDir(), "conf.d")))
 	if err != nil {
 		t.Fatalf("missing dir should be a no op: %v", err)
 	}
