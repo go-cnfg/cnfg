@@ -8,4 +8,6 @@ coverage:
       default:
         target: 100%
 
-comment: false
+comment:
+  layout: "condensed_header, diff, files"
+  require_changes: false
