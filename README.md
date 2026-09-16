@@ -103,8 +103,8 @@ of your config together with the error when a parser fails.
 | `Glob[T](dec, pattern)` | Every file matching the glob, in lexical order. |
 | `FileFromFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
 
-`Env`, `EnvFrom` and the file parsers each have a `Strict` twin, `EnvStrict`, `FileStrict` and so
-on, that fails on a key your config has no field for, see [extra keys](#extra-keys).
+Each of `Env`, `EnvFrom` and the file parsers has a `Strict` twin, `EnvStrict`, `FileStrict` and
+so on, that fails on a key your config has no field for, see [extra keys](#extra-keys).
 
 Nothing is magic about the order. Put the sources in the order you want them to win, and put
 your own parsers among them wherever they belong.
@@ -206,9 +206,9 @@ wins. `.conf` is what `/etc` uses, but the pattern is yours, so `*.yaml` works j
 ## Extra keys
 
 A key a config file has but your config does not is ignored, which is friendly to a file that
-several programs read and unfriendly to a typo. Every source that can have extra keys comes in a
-`Strict` flavor too, `FileStrict`, `GlobStrict`, `FileFromFlagStrict`, `EnvStrict` and
-`EnvFromStrict`, which fails on anything it cannot place:
+several programs read and unfriendly to a typo. Every source that can have extra keys has a
+`Strict` twin that fails on anything it cannot place: `FileStrict`, `GlobStrict`,
+`FileFromFlagStrict`, `EnvStrict` and `EnvFromStrict`.
 
 ```go
 cfg, err := cnfg.Parse(defaults,
@@ -299,8 +299,6 @@ and defaults from your struct:
 ```
 $ app -h
 Usage of app:
-  -config string
-    	path to config file
   -addr string
     	address to listen on (default :8080)
   -timeout duration
