@@ -11,21 +11,21 @@ import (
 // Field Addr of struct field Server is read from PREFIX_SERVER_ADDR, or from SERVER_ADDR
 // when the prefix is empty.
 func Env[T any](prefix string, opts ...Option) Parser[T] {
-	strict := isStrict(opts)
+	o := newOptions(opts)
 	return func(cfg T) (T, error) {
-		return envFrom(cfg, prefix, os.Environ(), strict)
+		return envFrom(cfg, prefix, os.Environ(), o)
 	}
 }
 
 // EnvFrom works like Env but reads the given KEY=VALUE pairs instead of os.Environ().
 func EnvFrom[T any](prefix string, environ []string, opts ...Option) Parser[T] {
-	strict := isStrict(opts)
+	o := newOptions(opts)
 	return func(cfg T) (T, error) {
-		return envFrom(cfg, prefix, environ, strict)
+		return envFrom(cfg, prefix, environ, o)
 	}
 }
 
-func envFrom[T any](cfg T, prefix string, environ []string, strict bool) (T, error) {
+func envFrom[T any](cfg T, prefix string, environ []string, o options) (T, error) {
 	ff, err := configFields(&cfg)
 	if err != nil {
 		return cfg, err
@@ -52,14 +52,14 @@ func envFrom[T any](cfg T, prefix string, environ []string, strict bool) (T, err
 		}
 	}
 
-	if strict {
-		return cfg, strictEnv(prefix, env, known)
+	if o.onUnknown != nil {
+		return cfg, unknownEnv(o, prefix, env, known)
 	}
 	return cfg, nil
 }
 
-// strictEnv reports the variables that carry the prefix but name no field.
-func strictEnv(prefix string, env map[string]string, known map[string]struct{}) error {
+// unknownEnv reports the variables that carry the prefix but name no field.
+func unknownEnv(o options, prefix string, env map[string]string, known map[string]struct{}) error {
 	p := envName(prefix, "")
 	if p == "" {
 		return ErrNoPrefix
@@ -71,12 +71,8 @@ func strictEnv(prefix string, env map[string]string, known map[string]struct{}) 
 			unknown = append(unknown, key)
 		}
 	}
-	if len(unknown) == 0 {
-		return nil
-	}
-
 	slices.Sort(unknown)
-	return fmt.Errorf("%w %s", ErrUnknownField, strings.Join(unknown, ", "))
+	return o.report(prefix, unknown)
 }
 
 func envName(prefix, name string) string {

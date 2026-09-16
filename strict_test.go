@@ -3,6 +3,7 @@ package cnfg_test
 import (
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -134,4 +135,79 @@ func TestStrictEmbeddedAndPointers(t *testing.T) {
 	if !errors.Is(err, cnfg.ErrUnknownField) {
 		t.Fatalf("got %v, want ErrUnknownField", err)
 	}
+}
+
+func TestOnUnknownCollects(t *testing.T) {
+	file := writeFile(t, "extras.json", `{"addr": ":1", "worker_cont": 8, "server": {"tls-cret": "a.pem"}}`)
+
+	var seen []cnfg.Unknown
+	collect := cnfg.OnUnknown(func(u cnfg.Unknown) error {
+		seen = append(seen, u)
+		return nil
+	})
+
+	cfg, err := cnfg.Parse(Strictly{},
+		cnfg.Decode[Strictly](json.Unmarshal, file, collect),
+		cnfg.EnvFrom[Strictly]("APP", []string{"APP_ADDR=:2", "APP_ADRR=:3"}, collect),
+	)
+	if err != nil {
+		t.Fatalf("a handler that returns nil should not stop the parse: %v", err)
+	}
+	assertEqual(t, "parsing went on", ":2", cfg.Addr)
+
+	if len(seen) != 2 {
+		t.Fatalf("got %d reports, want one per source: %+v", len(seen), seen)
+	}
+	assertEqual(t, "file source", file, seen[0].Source)
+	assertEqual(t, "file keys", "server.tls-cret, worker_cont", strings.Join(seen[0].Keys, ", "))
+	assertEqual(t, "env source", "APP", seen[1].Source)
+	assertEqual(t, "env keys", "APP_ADRR", strings.Join(seen[1].Keys, ", "))
+}
+
+func TestOnUnknownStaysQuietWhenThereIsNothing(t *testing.T) {
+	file := writeFile(t, "clean.json", `{"addr": ":1"}`)
+
+	calls := 0
+	count := cnfg.OnUnknown(func(cnfg.Unknown) error {
+		calls++
+		return nil
+	})
+
+	if _, err := cnfg.Parse(Strictly{},
+		cnfg.Decode[Strictly](json.Unmarshal, file, count),
+		cnfg.EnvFrom[Strictly]("APP", []string{"APP_ADDR=:2"}, count),
+	); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertEqual(t, "handler calls", 0, calls)
+}
+
+func TestOnUnknownErrorStopsTheParse(t *testing.T) {
+	file := writeFile(t, "extras.json", `{"worker_cont": 8}`)
+	errMine := errors.New("not having it")
+
+	_, err := cnfg.Parse(Strictly{}, cnfg.Decode[Strictly](json.Unmarshal, file, cnfg.OnUnknown(func(cnfg.Unknown) error {
+		return errMine
+	})))
+	if !errors.Is(err, errMine) {
+		t.Fatalf("got %v, want the handler error", err)
+	}
+}
+
+func TestOnUnknownPerFileInDir(t *testing.T) {
+	dir := writeDir(t, map[string]string{
+		"10-base.conf":  `{"addr": ":1"}`,
+		"20-typo.conf":  `{"adrr": ":2"}`,
+		"30-other.conf": `{"nope": true}`,
+	})
+
+	var sources []string
+	_, err := cnfg.Parse(Strictly{}, cnfg.DecodeDir[Strictly](json.Unmarshal, dir, cnfg.OnUnknown(func(u cnfg.Unknown) error {
+		sources = append(sources, filepath.Base(u.Source))
+		return nil
+	})))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertEqual(t, "one report per file with extras", "20-typo.conf, 30-other.conf", strings.Join(sources, ", "))
 }

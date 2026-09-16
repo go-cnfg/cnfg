@@ -8,24 +8,58 @@ import (
 )
 
 // Option changes how a source is read.
-type Option int
+type Option func(*options)
 
-const (
-	// Strict makes a source fail on values it cannot place. A config file key that
-	// matches no field ends the parse, and so does an environment variable that
-	// carries the prefix without naming a field:
-	//
-	//	cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml", cnfg.Strict)
-	//	cnfg.Env[Config]("APP", cnfg.Strict)
-	//
-	// Keys under a map or an any field are values rather than names, so they are
-	// left alone. Env needs a prefix to tell your variables from the rest of the
-	// environment, without one it fails with ErrNoPrefix.
-	Strict Option = iota + 1
-)
+type options struct {
+	onUnknown func(Unknown) error
+}
 
-func isStrict(opts []Option) bool {
-	return slices.Contains(opts, Strict)
+// Unknown is what a source could not place, with the file it was read from or the
+// env prefix it was looked up with as the source.
+type Unknown struct {
+	Source string
+	Keys   []string
+}
+
+// OnUnknown hands fn the keys a source could not place, so you can fail on them,
+// log them or count them. It is called once per file, and once for the environment,
+// only when there is something to report, and the error it returns ends the parse:
+//
+//	cnfg.Decode[Config](yaml.Unmarshal, path, cnfg.OnUnknown(func(u cnfg.Unknown) error {
+//		log.Printf("%s: ignoring %v", u.Source, u.Keys)
+//		return nil
+//	}))
+//
+// Keys under a map or an any field are values rather than names, so they are left
+// alone. Env needs a prefix to tell your variables from the rest of the environment,
+// without one it fails with ErrNoPrefix.
+func OnUnknown(fn func(Unknown) error) Option {
+	return func(o *options) { o.onUnknown = fn }
+}
+
+// Strict is OnUnknown with a handler that ends the parse, naming every key it could
+// not place, with an error wrapping ErrUnknownField:
+//
+//	cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml", cnfg.Strict)
+//	cnfg.Env[Config]("APP", cnfg.Strict)
+var Strict = OnUnknown(func(u Unknown) error {
+	return fmt.Errorf("%s: %w %s", u.Source, ErrUnknownField, strings.Join(u.Keys, ", "))
+})
+
+func newOptions(opts []Option) options {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+	return o
+}
+
+// report hands the keys to the handler, if there is one and there is anything to report.
+func (o options) report(source string, keys []string) error {
+	if o.onUnknown == nil || len(keys) == 0 {
+		return nil
+	}
+	return o.onUnknown(Unknown{Source: source, Keys: keys})
 }
 
 // unknownKeys lists the keys of tree that no field of the struct behind v reads,

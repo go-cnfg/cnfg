@@ -144,3 +144,23 @@ func ExampleStrict() {
 	// no field for adrr
 	// :8080 <nil>
 }
+
+func ExampleOnUnknown() {
+	type Config struct {
+		Addr string
+	}
+
+	file := filepath.Join(os.TempDir(), "cnfg-extras.json")
+	_ = os.WriteFile(file, []byte(`{"addr": ":8080", "adrr": ":9090", "workrs": 4}`), 0o600)
+	defer func() { _ = os.Remove(file) }()
+
+	cfg, err := cnfg.Parse(Config{}, cnfg.Decode[Config](json.Unmarshal, file, cnfg.OnUnknown(func(u cnfg.Unknown) error {
+		fmt.Println("ignoring", u.Keys)
+		return nil
+	})))
+	fmt.Println(cfg.Addr, err)
+
+	// Output:
+	// ignoring [adrr workrs]
+	// :8080 <nil>
+}
