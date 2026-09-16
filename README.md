@@ -101,7 +101,6 @@ of your config together with the error when a parser fails.
 | `FlagSet[T](set, args)` | Command line flags, from your own flag set and args. |
 | `File[T](dec, path)` | Config file at path, decoded with dec. |
 | `Glob[T](dec, pattern)` | Every file matching the glob, in lexical order. |
-| `Dir[T](dec, dir)` | Every `.conf` file of a drop-in directory. |
 | `FileFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
 
 `Env`, `EnvFrom` and all four file parsers take options as last arguments, see
@@ -180,16 +179,16 @@ cfg, err := cnfg.Parse(defaults,
 
 ## Drop-in directories
 
-`Dir` reads a whole `conf.d` directory the way the rest of `/etc` does: every `.conf`
-file in it, in lexical order, each one on top of the last. A directory that is not there is a
-no op like a missing file, so the usual base file plus drop-ins looks like this:
+`Glob` reads a whole `conf.d` directory the way the rest of `/etc` does: every file the
+pattern matches, in lexical order, each one on top of the last. A directory that is not there
+is a no op like a missing file, so the usual base file plus drop-ins looks like this:
 
 ```go
 import "go.yaml.in/yaml/v3"
 
 cfg, err := cnfg.Parse(defaults,
     cnfg.File[Config](yaml.Unmarshal, "/etc/app/config.yaml"),
-    cnfg.Dir[Config](yaml.Unmarshal, "/etc/app/config.d"),
+    cnfg.Glob[Config](yaml.Unmarshal, "/etc/app/config.d/*.conf"),
     cnfg.Env[Config]("APP"),
     cnfg.Flags[Config](),
 )
@@ -202,8 +201,7 @@ cfg, err := cnfg.Parse(defaults,
 ```
 
 Number the files the way sysctl.d and systemd drop-ins do, since the last one to set a field
-wins. `Dir` is `Glob` with the usual `*.conf` pattern, so reach for `Glob`
-when the files are named something else, `cnfg.Glob[Config](yaml.Unmarshal, "/etc/app/config.d/*.yaml")`.
+wins. `.conf` is what `/etc` uses, but the pattern is yours, so `*.yaml` works just as well.
 
 ## Extra keys
 
@@ -240,7 +238,7 @@ extras := cnfg.OnUnknown(func(u cnfg.Unknown) error {
 })
 
 cfg, err := cnfg.Parse(defaults,
-    cnfg.Dir[Config](yaml.Unmarshal, "/etc/app/config.d", extras),
+    cnfg.Glob[Config](yaml.Unmarshal, "/etc/app/config.d/*.conf", extras),
     cnfg.Env[Config]("APP", extras),
 )
 ```

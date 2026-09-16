@@ -28,7 +28,7 @@ func writeDir(t *testing.T, files map[string]string) string {
 	return dir
 }
 
-func TestDecodeGlob(t *testing.T) {
+func TestGlob(t *testing.T) {
 	dir := writeDir(t, map[string]string{
 		"20-app.conf":    `{"addr": ":2222", "worker_count": 2}`,
 		"10-base.conf":   `{"addr": ":1111", "ratio": 1.5}`,
@@ -48,7 +48,7 @@ func TestDecodeGlob(t *testing.T) {
 	assertEqual(t, "untouched default", time.Second, cfg.Timeout)
 }
 
-func TestDecodeGlobNoMatches(t *testing.T) {
+func TestGlobNoMatches(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "conf.d", "*.conf")
 
 	cfg, err := cnfg.Parse(defaults(), cnfg.Glob[Config](json.Unmarshal, missing))
@@ -58,7 +58,7 @@ func TestDecodeGlobNoMatches(t *testing.T) {
 	assertEqual(t, "defaults kept", ":8080", cfg.Addr)
 }
 
-func TestDecodeGlobSkipsDirs(t *testing.T) {
+func TestGlobSkipsDirs(t *testing.T) {
 	dir := writeDir(t, map[string]string{
 		"10-base.conf":      `{"addr": ":1111"}`,
 		"20-sub.conf/x.txt": "",
@@ -71,7 +71,7 @@ func TestDecodeGlobSkipsDirs(t *testing.T) {
 	assertEqual(t, "file read", ":1111", cfg.Addr)
 }
 
-func TestDecodeGlobBrokenFile(t *testing.T) {
+func TestGlobBrokenFile(t *testing.T) {
 	dir := writeDir(t, map[string]string{
 		"10-base.conf": `{"addr": ":1111"}`,
 		"20-bad.conf":  "{",
@@ -86,21 +86,21 @@ func TestDecodeGlobBrokenFile(t *testing.T) {
 	}
 }
 
-func TestDecodeGlobBadPattern(t *testing.T) {
+func TestGlobBadPattern(t *testing.T) {
 	_, err := cnfg.Parse(defaults(), cnfg.Glob[Config](json.Unmarshal, "["))
 	if !errors.Is(err, cnfg.ErrReadFile) {
 		t.Errorf("got %v, want ErrReadFile", err)
 	}
 }
 
-func TestDecodeDir(t *testing.T) {
+func TestDropInDirectory(t *testing.T) {
 	dir := writeDir(t, map[string]string{
 		"10-base.conf":  `{"addr": ":1111", "timeout": "90s"}`,
 		"20-local.conf": `{"addr": ":2222"}`,
 		"notes.txt":     `{"addr": ":7777"}`,
 	})
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.Dir[Config](json.Unmarshal, dir))
+	cfg, err := cnfg.Parse(defaults(), cnfg.Glob[Config](json.Unmarshal, filepath.Join(dir, "*.conf")))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -110,8 +110,8 @@ func TestDecodeDir(t *testing.T) {
 	assertEqual(t, "other extension skipped", 4, cfg.Workers)
 }
 
-func TestDecodeDirMissing(t *testing.T) {
-	cfg, err := cnfg.Parse(defaults(), cnfg.Dir[Config](json.Unmarshal, filepath.Join(t.TempDir(), "conf.d")))
+func TestDropInDirectoryMissing(t *testing.T) {
+	cfg, err := cnfg.Parse(defaults(), cnfg.Glob[Config](json.Unmarshal, filepath.Join(t.TempDir(), "conf.d", "*.conf")))
 	if err != nil {
 		t.Fatalf("missing dir should be a no op: %v", err)
 	}

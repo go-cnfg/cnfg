@@ -47,13 +47,6 @@ func Glob[T any](dec Decoder, pattern string, opts ...Option) Parser[T] {
 	}
 }
 
-// Dir decodes every .conf file in dir with dec on top of the config, which is the
-// drop-in directory convention of /etc. It is Glob with the usual pattern, so use
-// that one directly when the files are named something else.
-func Dir[T any](dec Decoder, dir string, opts ...Option) Parser[T] {
-	return Glob[T](dec, filepath.Join(dir, "*.conf"), opts...)
-}
-
 // FileFlag decodes the config file the user gave with the named flag, for example -config app.json.
 // The flag is registered in set, which should be the one given to FlagSet later on, and args are
 // scanned for it before any other source is read. It is a no op when the flag was not given, or

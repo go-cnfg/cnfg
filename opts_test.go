@@ -104,7 +104,7 @@ func TestStrictEnvNeedsPrefix(t *testing.T) {
 func TestStrictDir(t *testing.T) {
 	dir := writeDir(t, map[string]string{"10-base.conf": `{"addr": ":1"}`, "20-typo.conf": `{"adrr": ":2"}`})
 
-	_, err := cnfg.Parse(Strictly{}, cnfg.Dir[Strictly](json.Unmarshal, dir, cnfg.Strict))
+	_, err := cnfg.Parse(Strictly{}, cnfg.Glob[Strictly](json.Unmarshal, filepath.Join(dir, "*.conf"), cnfg.Strict))
 	if !errors.Is(err, cnfg.ErrUnknownField) {
 		t.Fatalf("got %v, want ErrUnknownField", err)
 	}
@@ -209,7 +209,7 @@ func TestOnUnknownPerFileInDir(t *testing.T) {
 	})
 
 	var sources []string
-	_, err := cnfg.Parse(Strictly{}, cnfg.Dir[Strictly](json.Unmarshal, dir, cnfg.OnUnknown(func(u cnfg.Unknown) error {
+	_, err := cnfg.Parse(Strictly{}, cnfg.Glob[Strictly](json.Unmarshal, filepath.Join(dir, "*.conf"), cnfg.OnUnknown(func(u cnfg.Unknown) error {
 		sources = append(sources, filepath.Base(u.Source)+":"+u.Key)
 		return nil
 	})))
