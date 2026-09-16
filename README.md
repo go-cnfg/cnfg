@@ -335,3 +335,35 @@ if err != nil {
 
 log.Println(set.Args())
 ```
+
+Flag parsing is a parser like any other, so a library with a different flavor of flags takes the
+same place in the chain. With [go-flags](https://github.com/jessevdk/go-flags) the flags come
+from its own struct tags, and a plain function wraps the parse:
+
+```go
+import "github.com/jessevdk/go-flags"
+
+type Config struct {
+    Addr    string        `long:"addr" description:"address to listen on"`
+    Timeout time.Duration `long:"timeout" description:"request timeout"`
+    Debug   bool          `long:"debug" description:"enable debug logging"`
+}
+
+func goFlags(cfg Config) (Config, error) {
+    _, err := flags.ParseArgs(&cfg, os.Args[1:])
+    return cfg, err
+}
+
+cfg, err := cnfg.Parse(Config{Addr: ":8080"},
+    cnfg.File[Config](json.Unmarshal, "/etc/app/config.json"),
+    cnfg.Env[Config]("APP"),
+    goFlags,
+)
+if flags.WroteHelp(err) {
+    return
+}
+```
+
+go-flags leaves a field alone when its flag was not given, so the values from the file and the
+env vars come through the way they do with `Flags`, and `--help` is spotted with `flags.WroteHelp`
+the way `flag.ErrHelp` is with `errors.Is`.
