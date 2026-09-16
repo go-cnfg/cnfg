@@ -161,7 +161,7 @@ func TestDecodeFlagNotStruct(t *testing.T) {
 	set := flag.NewFlagSet("test", flag.ContinueOnError)
 	set.SetOutput(io.Discard)
 
-	_, err := cnfg.Parse(42, cnfg.FileFlag[int](json.Unmarshal, set, "config", nil))
+	_, err := cnfg.Parse(42, cnfg.FileFromFlag[int](json.Unmarshal, set, "config", nil))
 	if !errors.Is(err, cnfg.ErrNotStruct) {
 		t.Errorf("got %v, want ErrNotStruct", err)
 	}

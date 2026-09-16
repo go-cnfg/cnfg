@@ -47,11 +47,11 @@ func Glob[T any](dec Decoder, pattern string, opts ...Option) Parser[T] {
 	}
 }
 
-// FileFlag decodes the config file the user gave with the named flag, for example -config app.json.
+// FileFromFlag decodes the config file the user gave with the named flag, for example -config app.json.
 // The flag is registered in set, which should be the one given to FlagSet later on, and args are
 // scanned for it before any other source is read. It is a no op when the flag was not given, or
 // when it names a file that is not there.
-func FileFlag[T any](dec Decoder, set *flag.FlagSet, name string, args []string, opts ...Option) Parser[T] {
+func FileFromFlag[T any](dec Decoder, set *flag.FlagSet, name string, args []string, opts ...Option) Parser[T] {
 	set.String(name, "", "path to config file")
 	o := newOptions(opts)
 

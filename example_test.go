@@ -61,7 +61,7 @@ func ExampleFlagSet() {
 	args := []string{"-h"}
 
 	_, _ = cnfg.Parse(AppConfig{Addr: ":8080", Timeout: 5 * time.Second},
-		cnfg.FileFlag[AppConfig](json.Unmarshal, set, "config", args),
+		cnfg.FileFromFlag[AppConfig](json.Unmarshal, set, "config", args),
 		cnfg.FlagSet[AppConfig](set, args),
 	)
 

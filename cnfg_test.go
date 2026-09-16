@@ -262,7 +262,7 @@ func TestFileFlag(t *testing.T) {
 	set.SetOutput(io.Discard)
 
 	cfg, err := cnfg.Parse(defaults(),
-		cnfg.FileFlag[Config](json.Unmarshal, set, "config", args),
+		cnfg.FileFromFlag[Config](json.Unmarshal, set, "config", args),
 		cnfg.FlagSet[Config](set, args),
 	)
 	if err != nil {
@@ -281,7 +281,7 @@ func TestFileFlagMissing(t *testing.T) {
 	set.SetOutput(io.Discard)
 
 	cfg, err := cnfg.Parse(defaults(),
-		cnfg.FileFlag[Config](json.Unmarshal, set, "config", args),
+		cnfg.FileFromFlag[Config](json.Unmarshal, set, "config", args),
 		cnfg.FlagSet[Config](set, args),
 	)
 	if err != nil {
@@ -450,7 +450,7 @@ func TestUsage(t *testing.T) {
 	args := []string{"-h"}
 
 	_, _ = cnfg.Parse(defaults(),
-		cnfg.FileFlag[Config](json.Unmarshal, set, "config", args),
+		cnfg.FileFromFlag[Config](json.Unmarshal, set, "config", args),
 		cnfg.FlagSet[Config](set, args),
 	)
 

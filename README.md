@@ -101,7 +101,7 @@ of your config together with the error when a parser fails.
 | `FlagSet[T](set, args)` | Command line flags, from your own flag set and args. |
 | `File[T](dec, path)` | Config file at path, decoded with dec. |
 | `Glob[T](dec, pattern)` | Every file matching the glob, in lexical order. |
-| `FileFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
+| `FileFromFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
 
 `Env`, `EnvFrom` and all four file parsers take options as last arguments, see
 [extra keys](#extra-keys).
@@ -162,8 +162,8 @@ cfg, err := cnfg.Parse(defaults, cnfg.File[Config](hcl.Unmarshal, "/etc/app/conf
 Values from files go through the same parsing as env vars and flags, so a duration is written
 as `"30s"` and a `net.IP` as `"10.0.0.1"` in every source.
 
-To let the user point at a config file with a flag, give `FileFlag` and `FlagSet` the same
-flag set and args. `FileFlag` registers the flag and reads the file before the other sources,
+To let the user point at a config file with a flag, give `FileFromFlag` and `FlagSet` the same
+flag set and args. `FileFromFlag` registers the flag and reads the file before the other sources,
 so the file is loaded even though it was named on the command line:
 
 ```go
@@ -171,7 +171,7 @@ set := flag.NewFlagSet("app", flag.ContinueOnError)
 args := os.Args[1:]
 
 cfg, err := cnfg.Parse(defaults,
-    cnfg.FileFlag[Config](json.Unmarshal, set, "config", args),
+    cnfg.FileFromFlag[Config](json.Unmarshal, set, "config", args),
     cnfg.Env[Config]("APP"),
     cnfg.FlagSet[Config](set, args),
 )
