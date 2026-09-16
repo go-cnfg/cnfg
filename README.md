@@ -369,21 +369,25 @@ type Config struct {
     Debug   bool          `long:"debug" description:"enable debug logging"`
 }
 
-func goFlags(cfg Config) (Config, error) {
+func ParseFlags(cfg Config) (Config, error) {
     _, err := flags.ParseArgs(&cfg, os.Args[1:])
+    if flags.WroteHelp(err) {
+        return cfg, flag.ErrHelp
+    }
     return cfg, err
 }
 
 cfg, err := cnfg.Parse(Config{Addr: ":8080"},
     cnfg.File[Config](json.Unmarshal, "/etc/app/config.json"),
     cnfg.Env[Config]("APP"),
-    goFlags,
+    ParseFlags,
 )
-if flags.WroteHelp(err) {
+if errors.Is(err, flag.ErrHelp) {
     return
 }
 ```
 
 go-flags leaves a field alone when its flag was not given, so the values from the file and the
-env vars come through the way they do with `Flags`, and `--help` is spotted with `flags.WroteHelp`
-the way `flag.ErrHelp` is with `errors.Is`.
+env vars come through the way they do with `Flags`. It has its own way of saying `--help` was
+asked for, and turning that into `flag.ErrHelp` inside the parser keeps the rest of the program
+the same as with `Flags`.
