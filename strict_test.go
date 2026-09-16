@@ -93,6 +93,19 @@ func TestStrictEnv(t *testing.T) {
 	}
 }
 
+func TestStrictEnvFromProcess(t *testing.T) {
+	t.Setenv("APP_ADDR", ":1")
+	t.Setenv("APP_ADRR", ":2")
+
+	_, err := cnfg.Parse(Strictly{}, cnfg.EnvStrict[Strictly]("APP"))
+	if !errors.Is(err, cnfg.ErrUnknownField) {
+		t.Fatalf("got %v, want ErrUnknownField", err)
+	}
+	if !strings.HasSuffix(err.Error(), "APP_ADRR") {
+		t.Errorf("error should name the variable: %v", err)
+	}
+}
+
 func TestStrictEnvNeedsPrefix(t *testing.T) {
 	_, err := cnfg.Parse(Strictly{}, cnfg.EnvFromStrict[Strictly]("", []string{"ADDR=:1"}))
 	if !errors.Is(err, cnfg.ErrNoPrefix) {
