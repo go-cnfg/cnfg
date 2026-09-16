@@ -52,9 +52,7 @@ func configFields[T any](cfg *T) ([]field, error) {
 // are left out since only the config file can fill them.
 func fields(v reflect.Value) ([]field, error) {
 	var ff []field
-	if err := collect(v, "", &ff); err != nil {
-		return nil, err
-	}
+	collect(v, "", &ff)
 
 	seen := make(map[string]struct{}, len(ff))
 	for _, f := range ff {
@@ -66,7 +64,7 @@ func fields(v reflect.Value) ([]field, error) {
 	return ff, nil
 }
 
-func collect(v reflect.Value, prefix string, ff *[]field) error {
+func collect(v reflect.Value, prefix string, ff *[]field) {
 	t := v.Type()
 	for i := range t.NumField() {
 		sf := t.Field(i)
@@ -98,20 +96,14 @@ func collect(v reflect.Value, prefix string, ff *[]field) error {
 		if !sf.Anonymous || tag.named {
 			p = prefix + tag.name + "-"
 		}
-		if err := collect(sv, p, ff); err != nil {
-			return err
-		}
+		collect(sv, p, ff)
 	}
-	return nil
 }
 
 // structValue returns the struct behind v, allocating it when v is a nil pointer.
 func structValue(v reflect.Value) (reflect.Value, bool) {
 	if v.Kind() == reflect.Pointer {
 		if v.IsNil() {
-			if !v.CanSet() {
-				return reflect.Value{}, false
-			}
 			v.Set(reflect.New(v.Type().Elem()))
 		}
 		v = v.Elem()
