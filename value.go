@@ -166,10 +166,6 @@ func setSlice(v reflect.Value, s string) error {
 }
 
 func stringOf(v reflect.Value) string {
-	if !v.IsValid() {
-		return ""
-	}
-
 	if v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return ""
@@ -194,10 +190,6 @@ func stringOf(v reflect.Value) string {
 }
 
 func marshalString(v reflect.Value) (string, bool) {
-	if !v.CanAddr() {
-		return "", false
-	}
-
 	switch m := v.Addr().Interface().(type) {
 	case flag.Value:
 		return m.String(), true
