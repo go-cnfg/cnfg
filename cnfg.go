@@ -18,7 +18,9 @@ import "github.com/go-cnfg/cnfg/strerr"
 
 const (
 	// NameTag overrides the name that is generated from the field name,
-	// for example `cnfg:"addr"`. Value "-" leaves the field out of every source.
+	// for example `cnfg:"addr"`. Value "-" leaves the field out of every source,
+	// and the require option after the name, `cnfg:"addr,require"` or
+	// `cnfg:",require"`, has Require check that the field was set.
 	NameTag = "cnfg"
 	// UsageTag documents the field in the flag usage output.
 	UsageTag = "usage"
@@ -34,6 +36,7 @@ const (
 	ErrUnsupportedType = strerr.Error("unsupported type")
 	ErrUnknownField    = strerr.Error("no field for")
 	ErrNoPrefix        = strerr.Error("strict env needs a prefix")
+	ErrRequired        = strerr.Error("required field not set")
 )
 
 // Decoder decodes config file contents into a *map[string]any, which is then applied
