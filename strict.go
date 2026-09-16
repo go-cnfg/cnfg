@@ -8,32 +8,24 @@ import (
 )
 
 // Option changes how a source is read.
-type Option func(*options)
+type Option int
 
-type options struct {
-	strict bool
-}
+const (
+	// Strict makes a source fail on values it cannot place. A config file key that
+	// matches no field ends the parse, and so does an environment variable that
+	// carries the prefix without naming a field:
+	//
+	//	cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml", cnfg.Strict)
+	//	cnfg.Env[Config]("APP", cnfg.Strict)
+	//
+	// Keys under a map or an any field are values rather than names, so they are
+	// left alone. Env needs a prefix to tell your variables from the rest of the
+	// environment, without one it fails with ErrNoPrefix.
+	Strict Option = iota + 1
+)
 
-// Strict makes a source fail on values it cannot place. A config file key that
-// matches no field ends the parse, and so does an environment variable that
-// carries the prefix without naming a field:
-//
-//	cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml", cnfg.Strict())
-//	cnfg.Env[Config]("APP", cnfg.Strict())
-//
-// Keys under a map or an any field are values rather than names, so they are
-// left alone. Env needs a prefix to tell your variables from the rest of the
-// environment, without one it fails with ErrNoPrefix.
-func Strict() Option {
-	return func(o *options) { o.strict = true }
-}
-
-func newOptions(opts []Option) options {
-	var o options
-	for _, opt := range opts {
-		opt(&o)
-	}
-	return o
+func isStrict(opts []Option) bool {
+	return slices.Contains(opts, Strict)
 }
 
 // unknownKeys lists the keys of tree that no field of the struct behind v reads,

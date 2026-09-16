@@ -134,7 +134,7 @@ func ExampleStrict() {
 	_ = os.WriteFile(file, []byte(`{"addr": ":8080", "adrr": ":9090"}`), 0o600)
 	defer func() { _ = os.Remove(file) }()
 
-	_, err := cnfg.Parse(Config{}, cnfg.Decode[Config](json.Unmarshal, file, cnfg.Strict()))
+	_, err := cnfg.Parse(Config{}, cnfg.Decode[Config](json.Unmarshal, file, cnfg.Strict))
 	fmt.Println(strings.TrimPrefix(err.Error(), file+": "))
 
 	cfg, err := cnfg.Parse(Config{}, cnfg.Decode[Config](json.Unmarshal, file))

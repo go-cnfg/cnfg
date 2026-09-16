@@ -105,7 +105,7 @@ of your config together with the error when a parser fails.
 | `DecodeFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
 | `Optional(p)` | Wraps a parser so that a missing file is not an error. |
 
-`Env`, `EnvFrom` and all four file parsers take `cnfg.Strict()` as a last argument, see
+`Env`, `EnvFrom` and all four file parsers take `cnfg.Strict` as a last argument, see
 [strict sources](#strict-sources).
 
 Nothing is magic about the order. Put the sources in the order you want them to win, and put
@@ -208,13 +208,13 @@ when the files are named something else, `cnfg.DecodeGlob[Config](yaml.Unmarshal
 ## Strict sources
 
 A key a config file has but your config does not is ignored, which is friendly to a file that
-several programs read and unfriendly to a typo. Pass `cnfg.Strict()` to a source and it fails
+several programs read and unfriendly to a typo. Pass `cnfg.Strict` to a source and it fails
 on anything it cannot place:
 
 ```go
 cfg, err := cnfg.Parse(defaults,
-    cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml", cnfg.Strict()),
-    cnfg.Env[Config]("APP", cnfg.Strict()),
+    cnfg.Decode[Config](yaml.Unmarshal, "/etc/app/config.yaml", cnfg.Strict),
+    cnfg.Env[Config]("APP", cnfg.Strict),
     cnfg.Flags[Config](),
 )
 ```

@@ -23,7 +23,7 @@ type Strictly struct {
 func strictFile(t *testing.T, content string) cnfg.Parser[Strictly] {
 	t.Helper()
 
-	return cnfg.Decode[Strictly](json.Unmarshal, writeFile(t, "strict.json", content), cnfg.Strict())
+	return cnfg.Decode[Strictly](json.Unmarshal, writeFile(t, "strict.json", content), cnfg.Strict)
 }
 
 func TestStrictFileAccepts(t *testing.T) {
@@ -76,12 +76,12 @@ func TestStrictFileIsOptIn(t *testing.T) {
 }
 
 func TestStrictEnv(t *testing.T) {
-	ok := cnfg.EnvFrom[Strictly]("APP", []string{"APP_ADDR=:1", "PATH=/bin", "OTHER_THING=x"}, cnfg.Strict())
+	ok := cnfg.EnvFrom[Strictly]("APP", []string{"APP_ADDR=:1", "PATH=/bin", "OTHER_THING=x"}, cnfg.Strict)
 	if _, err := cnfg.Parse(Strictly{}, ok); err != nil {
 		t.Errorf("variables without the prefix are not ours: %v", err)
 	}
 
-	bad := cnfg.EnvFrom[Strictly]("APP", []string{"APP_ADDR=:1", "APP_ADRR=:2"}, cnfg.Strict())
+	bad := cnfg.EnvFrom[Strictly]("APP", []string{"APP_ADDR=:1", "APP_ADRR=:2"}, cnfg.Strict)
 	_, err := cnfg.Parse(Strictly{}, bad)
 	if !errors.Is(err, cnfg.ErrUnknownField) {
 		t.Fatalf("got %v, want ErrUnknownField", err)
@@ -92,7 +92,7 @@ func TestStrictEnv(t *testing.T) {
 }
 
 func TestStrictEnvNeedsPrefix(t *testing.T) {
-	_, err := cnfg.Parse(Strictly{}, cnfg.EnvFrom[Strictly]("", []string{"ADDR=:1"}, cnfg.Strict()))
+	_, err := cnfg.Parse(Strictly{}, cnfg.EnvFrom[Strictly]("", []string{"ADDR=:1"}, cnfg.Strict))
 	if !errors.Is(err, cnfg.ErrNoPrefix) {
 		t.Errorf("got %v, want ErrNoPrefix", err)
 	}
@@ -101,7 +101,7 @@ func TestStrictEnvNeedsPrefix(t *testing.T) {
 func TestStrictDir(t *testing.T) {
 	dir := writeDir(t, map[string]string{"10-base.conf": `{"addr": ":1"}`, "20-typo.conf": `{"adrr": ":2"}`})
 
-	_, err := cnfg.Parse(Strictly{}, cnfg.DecodeDir[Strictly](json.Unmarshal, dir, cnfg.Strict()))
+	_, err := cnfg.Parse(Strictly{}, cnfg.DecodeDir[Strictly](json.Unmarshal, dir, cnfg.Strict))
 	if !errors.Is(err, cnfg.ErrUnknownField) {
 		t.Fatalf("got %v, want ErrUnknownField", err)
 	}
@@ -125,12 +125,12 @@ type Common struct {
 func TestStrictEmbeddedAndPointers(t *testing.T) {
 	file := writeFile(t, "embedded.json", `{"log-level": "warn", "addr": ":1", "server": {"TLSCert": "a.pem"}, "extra": {"max_conns": 2}}`)
 
-	if _, err := cnfg.Parse(StrictEmbedded{}, cnfg.Decode[StrictEmbedded](json.Unmarshal, file, cnfg.Strict())); err != nil {
+	if _, err := cnfg.Parse(StrictEmbedded{}, cnfg.Decode[StrictEmbedded](json.Unmarshal, file, cnfg.Strict)); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	typo := writeFile(t, "typo.json", `{"log-lvl": "warn"}`)
-	_, err := cnfg.Parse(StrictEmbedded{}, cnfg.Decode[StrictEmbedded](json.Unmarshal, typo, cnfg.Strict()))
+	_, err := cnfg.Parse(StrictEmbedded{}, cnfg.Decode[StrictEmbedded](json.Unmarshal, typo, cnfg.Strict))
 	if !errors.Is(err, cnfg.ErrUnknownField) {
 		t.Fatalf("got %v, want ErrUnknownField", err)
 	}

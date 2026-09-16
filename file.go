@@ -16,9 +16,9 @@ import (
 // encoding/json, go.yaml.in/yaml/v3 and github.com/BurntSushi/toml all provide
 // an Unmarshal that can be used as dec, and so does anything with that signature.
 func Decode[T any](dec Decoder, path string, opts ...Option) Parser[T] {
-	o := newOptions(opts)
+	strict := isStrict(opts)
 	return func(cfg T) (T, error) {
-		return decodeFile(cfg, dec, path, o)
+		return decodeFile(cfg, dec, path, strict)
 	}
 }
 
@@ -28,7 +28,7 @@ func Decode[T any](dec Decoder, path string, opts ...Option) Parser[T] {
 // a file later in the listing wins, and a pattern that matches nothing is a no op,
 // so name the files 10-base.conf, 20-app.conf, 99-local.conf.
 func DecodeGlob[T any](dec Decoder, pattern string, opts ...Option) Parser[T] {
-	o := newOptions(opts)
+	strict := isStrict(opts)
 	return func(cfg T) (T, error) {
 		paths, err := filepath.Glob(pattern)
 		if err != nil {
@@ -39,7 +39,7 @@ func DecodeGlob[T any](dec Decoder, pattern string, opts ...Option) Parser[T] {
 			if info, err := os.Stat(path); err != nil || info.IsDir() {
 				continue
 			}
-			if cfg, err = decodeFile(cfg, dec, path, o); err != nil {
+			if cfg, err = decodeFile(cfg, dec, path, strict); err != nil {
 				return cfg, err
 			}
 		}
@@ -70,7 +70,7 @@ func Optional[T any](p Parser[T]) Parser[T] {
 // scanned for it before any other source is read. It is a no op when the flag was not given.
 func DecodeFlag[T any](dec Decoder, set *flag.FlagSet, name string, args []string, opts ...Option) Parser[T] {
 	set.String(name, "", "path to config file")
-	o := newOptions(opts)
+	strict := isStrict(opts)
 
 	return func(cfg T) (T, error) {
 		ff, err := configFields(&cfg)
@@ -82,7 +82,7 @@ func DecodeFlag[T any](dec Decoder, set *flag.FlagSet, name string, args []strin
 		if path == "" {
 			return cfg, nil
 		}
-		return decodeFile(cfg, dec, path, o)
+		return decodeFile(cfg, dec, path, strict)
 	}
 }
 
@@ -102,7 +102,7 @@ func pathFromArgs(setName, name string, args []string, ff []field) string {
 	return *path
 }
 
-func decodeFile[T any](cfg T, dec Decoder, path string, o options) (T, error) {
+func decodeFile[T any](cfg T, dec Decoder, path string, strict bool) (T, error) {
 	v := reflect.ValueOf(&cfg).Elem()
 	if v.Kind() != reflect.Struct {
 		return cfg, fmt.Errorf("%w, got %T", ErrNotStruct, cfg)
@@ -121,7 +121,7 @@ func decodeFile[T any](cfg T, dec Decoder, path string, o options) (T, error) {
 		return cfg, fmt.Errorf("%w %s: %w", ErrDecodeFile, path, err)
 	}
 
-	if o.strict {
+	if strict {
 		if unknown := unknownKeys(v, tree, ""); len(unknown) > 0 {
 			return cfg, fmt.Errorf("%s: %w %s", path, ErrUnknownField, strings.Join(unknown, ", "))
 		}

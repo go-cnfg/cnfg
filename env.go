@@ -11,21 +11,21 @@ import (
 // Field Addr of struct field Server is read from PREFIX_SERVER_ADDR, or from SERVER_ADDR
 // when the prefix is empty.
 func Env[T any](prefix string, opts ...Option) Parser[T] {
-	o := newOptions(opts)
+	strict := isStrict(opts)
 	return func(cfg T) (T, error) {
-		return envFrom(cfg, prefix, os.Environ(), o)
+		return envFrom(cfg, prefix, os.Environ(), strict)
 	}
 }
 
 // EnvFrom works like Env but reads the given KEY=VALUE pairs instead of os.Environ().
 func EnvFrom[T any](prefix string, environ []string, opts ...Option) Parser[T] {
-	o := newOptions(opts)
+	strict := isStrict(opts)
 	return func(cfg T) (T, error) {
-		return envFrom(cfg, prefix, environ, o)
+		return envFrom(cfg, prefix, environ, strict)
 	}
 }
 
-func envFrom[T any](cfg T, prefix string, environ []string, o options) (T, error) {
+func envFrom[T any](cfg T, prefix string, environ []string, strict bool) (T, error) {
 	ff, err := configFields(&cfg)
 	if err != nil {
 		return cfg, err
@@ -52,7 +52,7 @@ func envFrom[T any](cfg T, prefix string, environ []string, o options) (T, error
 		}
 	}
 
-	if o.strict {
+	if strict {
 		return cfg, strictEnv(prefix, env, known)
 	}
 	return cfg, nil
