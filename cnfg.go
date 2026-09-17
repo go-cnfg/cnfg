@@ -49,11 +49,11 @@ type Decoder func(data []byte, v any) error
 // a config can be used as one.
 type Parser[T any] func(T) (T, error)
 
-// Parse applies the parsers on top of defaults in the given order and returns the result.
-// Fields that no parser touched keep the value they had in defaults.
+// Parse applies the parsers in the given order on top of a deep copy of defaults and returns
+// the result. Fields that no parser touched keep the value they had in defaults.
 // The zero value of T is returned together with the error when a parser fails.
 func Parse[T any](defaults T, parsers ...Parser[T]) (T, error) {
-	cfg := defaults
+	cfg := clone(defaults)
 	for _, p := range parsers {
 		next, err := p(cfg)
 		if err != nil {
