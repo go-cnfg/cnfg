@@ -143,7 +143,7 @@ func readFile[T any](cfg T, dec Decoder, path string, strict bool) (T, error) {
 		return cfg, fmt.Errorf("%w, got %T", ErrNotStruct, cfg)
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // reading the file the user named is the point
 	if errors.Is(err, fs.ErrNotExist) {
 		return cfg, nil
 	}
