@@ -271,8 +271,9 @@ invalid value for APP_WORKERS: strconv.ParseInt: parsing "many": invalid syntax
 A flag that will not parse is reported by the flag package itself, so that one wraps
 `ErrParseFlags` instead.
 
-A field that has to be set gets `require` in its `cnfg` tag, and `Require` fails on the first
-one that still has its zero value once the sources before it have been read:
+Beyond that cnfg ships one validator, `Require`. A field that has to be set gets `require` in
+its `cnfg` tag, and `Require` fails on the first one that still has its zero value once the
+sources before it have been read:
 
 ```go
 type Config struct {
@@ -291,8 +292,8 @@ The error wraps `ErrRequired` and names the field the way the flag does, `server
 field `Addr` of struct field `Server`. The zero value is what counts as not set, so a bool or a
 number that may well be zero is not something to require.
 
-Rules beyond that, a range or one field depending on another, are yours. They are a parser
-like any other, and a plain function is enough for most configs:
+Anything more than that is deliberately not built in. A validator is a parser like any other,
+so a plain function or whatever struct validator you already use fits at the end of the chain:
 
 ```go
 func validate(cfg Config) (Config, error) {
@@ -305,8 +306,9 @@ func validate(cfg Config) (Config, error) {
 cfg, err := cnfg.Parse(Config{Workers: 4}, cnfg.Env[Config]("APP"), cnfg.Flags[Config](), validate)
 ```
 
-Rules that live in struct tags come from [github.com/go-cnfg/validator](https://github.com/go-cnfg/validator),
-which wraps [go-playground/validator](https://github.com/go-playground/validator) as a parser:
+[github.com/go-cnfg/validator](https://github.com/go-cnfg/validator) is one such wrapper, it
+runs [go-playground/validator](https://github.com/go-playground/validator) as a parser so the
+rules live in struct tags:
 
 ```go
 import "github.com/go-cnfg/validator"
@@ -330,9 +332,8 @@ cfg, err := cnfg.Parse(Config{
 )
 ```
 
-`validator.With[Config](v)` takes a validator you set up yourself, for your own rules or a
-different tag name. Put the check last so every source has been read, and remember that the
-parse stops there: `Parse` returns the zero value of your config together with the error.
+Put the check last so every source has been read, and remember that the parse stops there:
+`Parse` returns the zero value of your config together with the error.
 
 ## Flags
 
