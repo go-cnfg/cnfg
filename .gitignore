@@ -3,3 +3,4 @@ coverage.txt
 junit.xml
 go.work
 go.work.sum
+/.output/
