@@ -77,6 +77,18 @@ func TestStrictFileIsOptIn(t *testing.T) {
 	}
 }
 
+func TestStrictFileFromEnv(t *testing.T) {
+	t.Setenv("APP_CONFIG", writeFile(t, "env.json", `{"addr": ":1", "adrr": ":2"}`))
+
+	_, err := cnfg.Parse(Strictly{}, cnfg.FileFromEnvStrict[Strictly](json.Unmarshal, "APP_CONFIG"))
+	if !errors.Is(err, cnfg.ErrUnknownField) {
+		t.Fatalf("got %v, want ErrUnknownField", err)
+	}
+	if !strings.HasSuffix(err.Error(), "adrr") {
+		t.Errorf("error should name the key: %v", err)
+	}
+}
+
 func TestStrictEnv(t *testing.T) {
 	ok := cnfg.EnvFromStrict[Strictly]("APP", []string{"APP_ADDR=:1", "PATH=/bin", "OTHER_THING=x"})
 	if _, err := cnfg.Parse(Strictly{}, ok); err != nil {

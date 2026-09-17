@@ -290,6 +290,34 @@ func TestFileFromFlagMissing(t *testing.T) {
 	assertEqual(t, "no file given", ":1234", cfg.Addr)
 }
 
+func TestFileFromEnv(t *testing.T) {
+	file := writeFile(t, "app.json", `{"addr": ":1111", "metadata": {"env": "test"}}`)
+	t.Setenv("APP_CONFIG", file)
+	t.Setenv("APP_VERBOSE", "true")
+
+	cfg, err := cnfg.Parse(defaults(),
+		cnfg.FileFromEnv[Config](json.Unmarshal, "APP_CONFIG"),
+		cnfg.Env[Config]("APP"),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertEqual(t, "file from env", ":1111", cfg.Addr)
+	assertEqual(t, "map from file", "test", cfg.Metadata["env"])
+	assertEqual(t, "env after file", true, cfg.Debug)
+}
+
+func TestFileFromEnvUnset(t *testing.T) {
+	t.Setenv("APP_CONFIG", "")
+
+	cfg, err := cnfg.Parse(defaults(), cnfg.FileFromEnv[Config](json.Unmarshal, "APP_CONFIG"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertEqual(t, "no file given", defaults().Addr, cfg.Addr)
+}
+
 func TestMissingFileIsSkipped(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "missing.json")
 

@@ -97,6 +97,30 @@ func fileFromFlag[T any](dec Decoder, set *flag.FlagSet, name string, args []str
 	}
 }
 
+// FileFromEnv decodes the config file named by the environment variable, for example
+// APP_CONFIG=/etc/app/config.json. It is a no op when the variable is not set or empty, or
+// when it names a file that is not there. EnvStrict cannot tell the variable from a typo,
+// so next to a strict env source name it outside that prefix.
+func FileFromEnv[T any](dec Decoder, name string) Parser[T] {
+	return fileFromEnv[T](dec, name, false)
+}
+
+// FileFromEnvStrict is FileFromEnv that also fails on a key the config has no field for,
+// the way FileStrict does.
+func FileFromEnvStrict[T any](dec Decoder, name string) Parser[T] {
+	return fileFromEnv[T](dec, name, true)
+}
+
+func fileFromEnv[T any](dec Decoder, name string, strict bool) Parser[T] {
+	return func(cfg T) (T, error) {
+		path := os.Getenv(name)
+		if path == "" {
+			return cfg, nil
+		}
+		return readFile(cfg, dec, path, strict)
+	}
+}
+
 // pathFromArgs parses args with throwaway values to find out the config file path before
 // any of the real values are set. Errors are left to the real flag parsing, which reports
 // them with the proper usage output.
@@ -119,7 +143,7 @@ func readFile[T any](cfg T, dec Decoder, path string, strict bool) (T, error) {
 		return cfg, fmt.Errorf("%w, got %T", ErrNotStruct, cfg)
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // reading the file the user named is the point
 	if errors.Is(err, fs.ErrNotExist) {
 		return cfg, nil
 	}

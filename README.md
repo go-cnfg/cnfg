@@ -102,6 +102,7 @@ of your config together with the error when a parser fails.
 | `File[T](dec, path)` | Config file at path, decoded with dec. |
 | `Glob[T](dec, pattern)` | Every file matching the glob, in lexical order. |
 | `FileFromFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
+| `FileFromEnv[T](dec, name)` | Config file named by an env var, `APP_CONFIG=app.json`. |
 
 Each of `Env`, `EnvFrom` and the file parsers has a `Strict` twin, `EnvStrict`, `FileStrict` and
 so on, that fails on a key your config has no field for, see [extra keys](#extra-keys).
@@ -177,6 +178,20 @@ cfg, err := cnfg.Parse(Config{Addr: ":8080"},
 )
 ```
 
+`FileFromEnv` does the same for an environment variable, and is a no op when the variable is
+empty or names a file that is not there:
+
+```go
+cfg, err := cnfg.Parse(Config{Addr: ":8080"},
+    cnfg.FileFromEnv[Config](json.Unmarshal, "APP_CONFIG"),
+    cnfg.Env[Config]("APP"),
+    cnfg.Flags[Config](),
+)
+```
+
+`EnvStrict` cannot tell that variable from a typo, so next to a strict env source name it
+outside the prefix, `CONFIG_FILE` rather than `APP_CONFIG`.
+
 ## Drop-in directories
 
 `Glob` reads a whole `conf.d` directory the way the rest of `/etc` does: every file the
@@ -208,7 +223,7 @@ wins. `.conf` is what `/etc` uses, but the pattern is yours, so `*.yaml` works j
 A key a config file has but your config does not is ignored, which is friendly to a file that
 several programs read and unfriendly to a typo. Every source that can have extra keys has a
 `Strict` twin that fails on anything it cannot place: `FileStrict`, `GlobStrict`,
-`FileFromFlagStrict`, `EnvStrict` and `EnvFromStrict`.
+`FileFromFlagStrict`, `FileFromEnvStrict`, `EnvStrict` and `EnvFromStrict`.
 
 ```go
 cfg, err := cnfg.Parse(Config{Addr: ":8080"},
