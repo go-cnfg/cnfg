@@ -144,3 +144,26 @@ func ExampleFileStrict() {
 	// no field for adrr
 	// :8080 <nil>
 }
+
+func ExampleRequire() {
+	type Config struct {
+		Addr    string `cnfg:",require"`
+		Workers int
+	}
+
+	_, err := cnfg.Parse(Config{Workers: 4},
+		cnfg.EnvFrom[Config]("APP", []string{"APP_WORKERS=8"}),
+		cnfg.Require[Config](),
+	)
+	fmt.Println(err)
+
+	cfg, err := cnfg.Parse(Config{Workers: 4},
+		cnfg.EnvFrom[Config]("APP", []string{"APP_ADDR=:8080"}),
+		cnfg.Require[Config](),
+	)
+	fmt.Println(cfg.Addr, err)
+
+	// Output:
+	// required field not set: addr
+	// :8080 <nil>
+}

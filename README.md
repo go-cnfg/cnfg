@@ -135,6 +135,7 @@ ignores case, dashes and underscores. `{"server": {"tls-cert": "a.pem"}}` and
 | `cnfg:"name"` | Use the given name instead of the generated one. |
 | `cnfg:"-"` | Leave the field out of all sources. |
 | `usage:"text"` | Document the field in the usage output. |
+| `cnfg:",require"` | Make `Require` fail when the field is still zero, after a name or on its own. |
 
 ## Config files
 
@@ -267,7 +268,27 @@ turns down ends the parse with an error wrapping `ErrInvalidValue`:
 invalid value for APP_WORKERS: strconv.ParseInt: parsing "many": invalid syntax
 ```
 
-Rules beyond the type, a range or a field that has to be set, are yours. They are a parser
+A field that has to be set gets `require` in its `cnfg` tag, and `Require` fails on the first
+one that still has its zero value once the sources before it have been read:
+
+```go
+type Config struct {
+    Addr    string `cnfg:",require"`
+    Workers int
+}
+
+cfg, err := cnfg.Parse(Config{Workers: 4}, cnfg.Env[Config]("APP"), cnfg.Flags[Config](), cnfg.Require[Config]())
+```
+
+```
+required field not set: addr
+```
+
+The error wraps `ErrRequired` and names the field the way the flag does, `server-addr` for
+field `Addr` of struct field `Server`. The zero value is what counts as not set, so a bool or a
+number that may well be zero is not something to require.
+
+Rules beyond that, a range or one field depending on another, are yours. They are a parser
 like any other, and a plain function is enough for most configs:
 
 ```go
@@ -363,21 +384,25 @@ type Config struct {
     Debug   bool          `long:"debug" description:"enable debug logging"`
 }
 
-func goFlags(cfg Config) (Config, error) {
+func ParseFlags(cfg Config) (Config, error) {
     _, err := flags.ParseArgs(&cfg, os.Args[1:])
+    if flags.WroteHelp(err) {
+        return cfg, flag.ErrHelp
+    }
     return cfg, err
 }
 
 cfg, err := cnfg.Parse(Config{Addr: ":8080"},
     cnfg.File[Config](json.Unmarshal, "/etc/app/config.json"),
     cnfg.Env[Config]("APP"),
-    goFlags,
+    ParseFlags,
 )
-if flags.WroteHelp(err) {
+if errors.Is(err, flag.ErrHelp) {
     return
 }
 ```
 
 go-flags leaves a field alone when its flag was not given, so the values from the file and the
-env vars come through the way they do with `Flags`, and `--help` is spotted with `flags.WroteHelp`
-the way `flag.ErrHelp` is with `errors.Is`.
+env vars come through the way they do with `Flags`. It has its own way of saying `--help` was
+asked for, and turning that into `flag.ErrHelp` inside the parser keeps the rest of the program
+the same as with `Flags`.
