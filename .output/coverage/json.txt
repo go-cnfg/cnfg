@@ -1,3 +1,0 @@
-mode: atomic
-github.com/go-cnfg/cnfg/json/json.go:12.46,14.2 1 4
-github.com/go-cnfg/cnfg/json/json.go:18.84,20.2 1 1
