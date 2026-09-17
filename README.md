@@ -268,6 +268,9 @@ turns down ends the parse with an error wrapping `ErrInvalidValue`:
 invalid value for APP_WORKERS: strconv.ParseInt: parsing "many": invalid syntax
 ```
 
+A flag that will not parse is reported by the flag package itself, so that one wraps
+`ErrParseFlags` instead.
+
 A field that has to be set gets `require` in its `cnfg` tag, and `Require` fails on the first
 one that still has its zero value once the sources before it have been read:
 
