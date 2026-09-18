@@ -3,7 +3,7 @@ package cnfg
 import "reflect"
 
 // clone returns a deep copy of cfg, one that shares no pointer, map or slice with it, so
-// that nothing a parser writes reaches the defaults the caller still holds.
+// that nothing a source writes reaches the defaults the caller still holds.
 func clone[T any](cfg T) T {
 	c, _ := cloneValue(reflect.ValueOf(&cfg).Elem()).Interface().(T)
 	return c

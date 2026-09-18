@@ -12,16 +12,15 @@ import (
 )
 
 // File decodes the config file at path with dec on top of the config. A file that is
-// not there is a no op, since a config file is the source that is allowed to be missing.
-// encoding/json, go.yaml.in/yaml/v3 and github.com/BurntSushi/toml all provide an
-// Unmarshal that can be used as dec, and so does anything with that signature.
+// not there is a no op, so an optional config file needs no guard of its own. A key the
+// file leaves out keeps the value the config already had.
 func File(dec Decoder, path string) Source {
 	return file(dec, path, false)
 }
 
-// FileStrict is File that also fails on a key the config has no field for, with an error
-// wrapping ErrUnknownField. Keys under a map or an any field are values rather than
-// names, so they are left alone.
+// FileStrict is [File] that also fails with [ErrUnknownField] on a key the config has no
+// field for, which catches a typo in the file. Keys under a map or an any field are
+// values rather than names, so they are left alone.
 func FileStrict(dec Decoder, path string) Source {
 	return file(dec, path, true)
 }
@@ -32,17 +31,20 @@ func file(dec Decoder, path string, strict bool) Source {
 	})
 }
 
-// Glob decodes every file matching pattern with dec on top of the config, in the
-// order filepath.Glob returns them, which is lexical. It is the drop-in directory
-// convention of /etc, as in Glob(yaml.Unmarshal, "/etc/app/config.d/*.conf"):
-// a file later in the listing wins, and a pattern that matches nothing is a no op,
-// so name the files 10-base.conf, 20-app.conf, 99-local.conf.
+// Glob decodes every file matching pattern with dec on top of the config, in the lexical
+// order [filepath.Glob] returns them, so a later file wins. A pattern that matches
+// nothing is a no op. It is the drop-in directory of /etc:
+//
+//	cnfg.Glob(yaml.Unmarshal, "/etc/app/config.d/*.conf")
+//
+// Name the files 10-base.conf, 20-app.conf, 99-local.conf to put them in the order you
+// want them read.
 func Glob(dec Decoder, pattern string) Source {
 	return glob(dec, pattern, false)
 }
 
-// GlobStrict is Glob that also fails on a key the config has no field for, the way
-// FileStrict does, naming the file that carries it.
+// GlobStrict is [Glob] that also fails with [ErrUnknownField] on a key the config has no
+// field for, naming the file that carries it.
 func GlobStrict(dec Decoder, pattern string) Source {
 	return glob(dec, pattern, true)
 }
@@ -66,16 +68,16 @@ func glob(dec Decoder, pattern string, strict bool) Source {
 	})
 }
 
-// FileFromFlag decodes the config file the user gave with the named flag, for example -config app.json.
-// The flag is registered in set, which should be the one given to FlagSet later on, and args are
-// scanned for it before any other source is read. It is a no op when the flag was not given, or
-// when it names a file that is not there.
+// FileFromFlag decodes the config file the user named with a flag, -config app.json. The
+// flag is registered in set, which is the set to hand to [FlagSet] later, and args are
+// scanned for it before any other source runs, so put this first. A flag that was not
+// given, or that names a file which is not there, is a no op.
 func FileFromFlag(dec Decoder, set *flag.FlagSet, name string, args []string) Source {
 	return fileFromFlag(dec, set, name, args, false)
 }
 
-// FileFromFlagStrict is FileFromFlag that also fails on a key the config has no field
-// for, the way FileStrict does.
+// FileFromFlagStrict is [FileFromFlag] that also fails with [ErrUnknownField] on a key
+// the config has no field for.
 func FileFromFlagStrict(dec Decoder, set *flag.FlagSet, name string, args []string) Source {
 	return fileFromFlag(dec, set, name, args, true)
 }
@@ -97,16 +99,16 @@ func fileFromFlag(dec Decoder, set *flag.FlagSet, name string, args []string, st
 	})
 }
 
-// FileFromEnv decodes the config file named by the environment variable, for example
-// APP_CONFIG=/etc/app/config.json. It is a no op when the variable is not set or empty, or
-// when it names a file that is not there. EnvStrict cannot tell the variable from a typo,
-// so next to a strict env source name it outside that prefix.
+// FileFromEnv decodes the config file named by an environment variable,
+// APP_CONFIG=/etc/app/config.json. A variable that is unset or empty, or that names a
+// file which is not there, is a no op. Next to an [EnvStrict] source, name the variable
+// outside that prefix, which would read it as a typo.
 func FileFromEnv(dec Decoder, name string) Source {
 	return fileFromEnv(dec, name, false)
 }
 
-// FileFromEnvStrict is FileFromEnv that also fails on a key the config has no field for,
-// the way FileStrict does.
+// FileFromEnvStrict is [FileFromEnv] that also fails with [ErrUnknownField] on a key the
+// config has no field for.
 func FileFromEnvStrict(dec Decoder, name string) Source {
 	return fileFromEnv(dec, name, true)
 }

@@ -7,32 +7,34 @@ import (
 	"strings"
 )
 
-// Env reads the environment variables named after the config fields, prefixed with prefix.
-// Field Addr of struct field Server is read from PREFIX_SERVER_ADDR, or from SERVER_ADDR
-// when the prefix is empty.
+// Env reads the config from the environment. A field is named in upper case with
+// underscores and the prefix in front, so field Addr of struct field Server is read
+// from PREFIX_SERVER_ADDR, or from SERVER_ADDR when prefix is empty. A variable that
+// is not set leaves its field alone.
 func Env(prefix string) Source {
 	return sourceFunc(func(v reflect.Value) error {
 		return envFrom(v, prefix, os.Environ(), false)
 	})
 }
 
-// EnvStrict is Env that also fails on a variable that carries the prefix but names no
-// field, with an error wrapping ErrUnknownField. The prefix is what tells your variables
-// from the rest of the environment, so an empty one fails with ErrNoPrefix.
+// EnvStrict is [Env] that also fails with [ErrUnknownField] on a variable that carries
+// the prefix but names no field, which catches a typo in a variable name. The prefix
+// is what tells your variables from the rest of the environment, so an empty one fails
+// with [ErrNoPrefix].
 func EnvStrict(prefix string) Source {
 	return sourceFunc(func(v reflect.Value) error {
 		return envFrom(v, prefix, os.Environ(), true)
 	})
 }
 
-// EnvFrom works like Env but reads the given KEY=VALUE pairs instead of os.Environ().
+// EnvFrom is [Env] over the given KEY=VALUE pairs instead of [os.Environ].
 func EnvFrom(prefix string, environ []string) Source {
 	return sourceFunc(func(v reflect.Value) error {
 		return envFrom(v, prefix, environ, false)
 	})
 }
 
-// EnvFromStrict works like EnvStrict but reads the given KEY=VALUE pairs instead of os.Environ().
+// EnvFromStrict is [EnvStrict] over the given KEY=VALUE pairs instead of [os.Environ].
 func EnvFromStrict(prefix string, environ []string) Source {
 	return sourceFunc(func(v reflect.Value) error {
 		return envFrom(v, prefix, environ, true)

@@ -10,14 +10,18 @@ import (
 	"strings"
 )
 
-// Flags parses os.Args[1:] into the config.
+// Flags parses os.Args[1:] into the config with a flag set of its own, named after
+// the program and set to [flag.ContinueOnError]. Use [FlagSet] to parse with a set
+// of your own.
 func Flags() Source {
 	return FlagSet(flag.NewFlagSet(filepath.Base(os.Args[0]), flag.ContinueOnError), os.Args[1:])
 }
 
-// FlagSet parses args with the given flag set. Flags that were registered before are left alone,
-// and the positional args are available with set.Args() once Parse is done.
-// The error wraps ErrParseFlags, and flag.ErrHelp when the user asked for the usage output.
+// FlagSet parses args with set, registering one flag per config field. A flag the args
+// do not carry leaves its field alone, flags already registered in set are left to
+// their own values, and set.Args() holds the positional args once [Parse] is done.
+// The error wraps [ErrParseFlags], or [flag.ErrHelp] when the user asked for the usage
+// output.
 func FlagSet(set *flag.FlagSet, args []string) Source {
 	return sourceFunc(func(v reflect.Value) error {
 		ff, err := fields(v)
