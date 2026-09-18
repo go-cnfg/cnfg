@@ -52,6 +52,7 @@ func main() {
 - [Types](#types)
 - [Validation](#validation)
 - [Flags](#flags)
+- [Exiting on error](#exiting-on-error)
 
 ## Install
 
@@ -361,6 +362,9 @@ if errors.Is(err, flag.ErrHelp) {
 }
 ```
 
+A `main` with nowhere to put that error can leave it to `MustParse`, see
+[exiting on error](#exiting-on-error).
+
 Use `FlagSet` when you want to name the flag set, write the usage somewhere else, register flags
 of your own or read the positional args that were left over:
 
@@ -429,3 +433,36 @@ go-flags leaves a field alone when its flag was not given, so the values from th
 env vars come through the way they do with `Flags`. It has its own way of saying `--help` was
 asked for, and turning that into `flag.ErrHelp` inside the function keeps the rest of the program
 the same as with `Flags`.
+
+## Exiting on error
+
+`MustParse` is `Parse` for a `main` that has nowhere to put an error. It gives the config when
+every source read, and otherwise writes the error to stderr and exits with status 1:
+
+```go
+func main() {
+    cfg := cnfg.MustParse(Config{},
+        cnfg.File(json.Unmarshal, "/etc/app/config.json"),
+        cnfg.Env("APP"),
+        cnfg.Flags(),
+        cnfg.Require(),
+    )
+
+    log.Printf("%+v", cfg)
+}
+```
+
+```
+$ app
+required field not set: addr
+$ echo $?
+1
+```
+
+Two errors it adds nothing of its own to, since they are on the screen by the time it sees them.
+`-h` is the user asking for the usage output rather than a failure, so the flag set writes the
+listing and `MustParse` exits with status 0. A flag that will not parse is reported by the flag
+set as well, together with the usage, and that one exits with status 1.
+
+Use `Parse` where the caller has somewhere better to put the error, a library, a test, or a
+`main` that logs it its own way.
