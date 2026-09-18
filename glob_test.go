@@ -37,7 +37,7 @@ func TestGlob(t *testing.T) {
 		"notes.txt":      `{"addr": ":7777"}`,
 	})
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.Glob[Config](json.Unmarshal, filepath.Join(dir, "*.conf")))
+	cfg, err := cnfg.Parse(defaults(), cnfg.Glob(json.Unmarshal, filepath.Join(dir, "*.conf")))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestGlob(t *testing.T) {
 func TestGlobNoMatches(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "conf.d", "*.conf")
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.Glob[Config](json.Unmarshal, missing))
+	cfg, err := cnfg.Parse(defaults(), cnfg.Glob(json.Unmarshal, missing))
 	if err != nil {
 		t.Fatalf("a directory that is not there should be a no op: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestGlobSkipsDirs(t *testing.T) {
 		"20-sub.conf/x.txt": "",
 	})
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.Glob[Config](json.Unmarshal, filepath.Join(dir, "*.conf")))
+	cfg, err := cnfg.Parse(defaults(), cnfg.Glob(json.Unmarshal, filepath.Join(dir, "*.conf")))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestGlobBrokenFile(t *testing.T) {
 		"20-bad.conf":  "{",
 	})
 
-	_, err := cnfg.Parse(defaults(), cnfg.Glob[Config](json.Unmarshal, filepath.Join(dir, "*.conf")))
+	_, err := cnfg.Parse(defaults(), cnfg.Glob(json.Unmarshal, filepath.Join(dir, "*.conf")))
 	if !errors.Is(err, cnfg.ErrDecodeFile) {
 		t.Fatalf("got %v, want ErrDecodeFile", err)
 	}
@@ -87,7 +87,7 @@ func TestGlobBrokenFile(t *testing.T) {
 }
 
 func TestGlobBadPattern(t *testing.T) {
-	_, err := cnfg.Parse(defaults(), cnfg.Glob[Config](json.Unmarshal, "["))
+	_, err := cnfg.Parse(defaults(), cnfg.Glob(json.Unmarshal, "["))
 	if !errors.Is(err, cnfg.ErrReadFile) {
 		t.Errorf("got %v, want ErrReadFile", err)
 	}
@@ -100,7 +100,7 @@ func TestDropInDirectory(t *testing.T) {
 		"notes.txt":     `{"addr": ":7777"}`,
 	})
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.Glob[Config](json.Unmarshal, filepath.Join(dir, "*.conf")))
+	cfg, err := cnfg.Parse(defaults(), cnfg.Glob(json.Unmarshal, filepath.Join(dir, "*.conf")))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestDropInDirectory(t *testing.T) {
 }
 
 func TestDropInDirectoryMissing(t *testing.T) {
-	cfg, err := cnfg.Parse(defaults(), cnfg.Glob[Config](json.Unmarshal, filepath.Join(t.TempDir(), "conf.d", "*.conf")))
+	cfg, err := cnfg.Parse(defaults(), cnfg.Glob(json.Unmarshal, filepath.Join(t.TempDir(), "conf.d", "*.conf")))
 	if err != nil {
 		t.Fatalf("missing dir should be a no op: %v", err)
 	}

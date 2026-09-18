@@ -5,16 +5,21 @@
 // they are given, so the last one wins:
 //
 //	cfg, err := cnfg.Parse(Config{Addr: ":8080"},
-//		cnfg.File[Config](json.Unmarshal, "app.json"),
-//		cnfg.Env[Config]("APP"),
-//		cnfg.Flags[Config](),
+//		cnfg.File(json.Unmarshal, "app.json"),
+//		cnfg.Env("APP"),
+//		cnfg.Flags(),
 //	)
 //
 // A config file format is the decoder you pass in, so the format library stays your own
 // dependency and cnfg itself needs nothing outside the standard library.
 package cnfg
 
-import "github.com/go-cnfg/cnfg/strerr"
+import (
+	"fmt"
+	"reflect"
+
+	"github.com/go-cnfg/cnfg/strerr"
+)
 
 const (
 	// NameTag overrides the name that is generated from the field name,
@@ -37,6 +42,7 @@ const (
 	ErrUnknownField    = strerr.Error("no field for")
 	ErrNoPrefix        = strerr.Error("strict env needs a prefix")
 	ErrRequired        = strerr.Error("required field not set")
+	ErrWrongType       = strerr.Error("source was made for another config type")
 )
 
 // Decoder decodes config file contents into a *map[string]any, which is then applied
@@ -44,23 +50,59 @@ const (
 // all satisfy it.
 type Decoder func(data []byte, v any) error
 
-// Parser reads one config source on top of the config it is given.
-// Env, Flags and friends return one, and anything that fills or validates
-// a config can be used as one.
-type Parser[T any] func(T) (T, error)
+// Source reads one config source on top of the config being parsed. File, Env, Flags and
+// friends return one, and Func turns anything that fills or validates a config into one.
+// A Source carries no config type of its own, so the sources you hand to Parse need no
+// type argument and the config type is inferred from the defaults.
+type Source interface {
+	apply(v reflect.Value) error
+}
 
-// Parse applies the parsers in the given order on top of a deep copy of defaults and returns
-// the result. Fields that no parser touched keep the value they had in defaults.
-// The zero value of T is returned together with the error when a parser fails.
-func Parse[T any](defaults T, parsers ...Parser[T]) (T, error) {
+// sourceFunc is a Source written as a function over the config being parsed.
+type sourceFunc func(v reflect.Value) error
+
+func (f sourceFunc) apply(v reflect.Value) error { return f(v) }
+
+// Parse applies the sources in the given order on top of a deep copy of defaults and returns
+// the result. Fields that no source touched keep the value they had in defaults.
+// The zero value of T is returned together with the error when a source fails.
+func Parse[T any](defaults T, sources ...Source) (T, error) {
 	cfg := clone(defaults)
-	for _, p := range parsers {
-		next, err := p(cfg)
-		if err != nil {
+
+	v := reflect.ValueOf(&cfg).Elem()
+	if v.Kind() != reflect.Struct {
+		var zero T
+		return zero, fmt.Errorf("%w, got %T", ErrNotStruct, cfg)
+	}
+
+	for _, s := range sources {
+		if err := s.apply(v); err != nil {
 			var zero T
 			return zero, err
 		}
-		cfg = next
 	}
 	return cfg, nil
+}
+
+// Func turns a function that fills or validates a config into a Source, so that your own
+// step can sit in the same list as the ones cnfg provides:
+//
+//	cnfg.Parse(Config{}, cnfg.Env("APP"), cnfg.Func(validate))
+//
+// The config type is inferred from fn. Handing the result to a Parse of another type
+// fails with ErrWrongType.
+func Func[T any](fn func(T) (T, error)) Source {
+	return sourceFunc(func(v reflect.Value) error {
+		cfg, ok := v.Interface().(T)
+		if !ok {
+			return fmt.Errorf("%w: %s, not %s", ErrWrongType, reflect.TypeFor[T](), v.Type())
+		}
+
+		out, err := fn(cfg)
+		if err != nil {
+			return err
+		}
+		v.Set(reflect.ValueOf(out))
+		return nil
+	})
 }

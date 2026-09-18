@@ -12,22 +12,18 @@ import (
 //		Addr string `cnfg:",require"`
 //	}
 //
-//	cfg, err := cnfg.Parse(Config{}, cnfg.Env[Config]("APP"), cnfg.Require[Config]())
+//	cfg, err := cnfg.Parse(Config{}, cnfg.Env("APP"), cnfg.Require())
 //
 // The error wraps ErrRequired and names the field the way the flag does, server-addr for
 // field Addr of struct field Server. The zero value is what counts as not set, so a bool
 // or a number that may legitimately be zero is not something to require.
-func Require[T any]() Parser[T] {
-	return func(cfg T) (T, error) {
-		v := reflect.ValueOf(&cfg).Elem()
-		if v.Kind() != reflect.Struct {
-			return cfg, fmt.Errorf("%w, got %T", ErrNotStruct, cfg)
-		}
+func Require() Source {
+	return sourceFunc(func(v reflect.Value) error {
 		if name := missing(v, ""); name != "" {
-			return cfg, fmt.Errorf("%w: %s", ErrRequired, name)
+			return fmt.Errorf("%w: %s", ErrRequired, name)
 		}
-		return cfg, nil
-	}
+		return nil
+	})
 }
 
 // missing returns the name of the first required field that is still zero, or "".
