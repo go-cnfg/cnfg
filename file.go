@@ -68,35 +68,71 @@ func glob(dec Decoder, pattern string, strict bool) Source {
 	})
 }
 
-// FileFromFlag decodes the config file the user named with a flag, -config app.json. The
-// flag is registered in set, which is the set to hand to [FlagSet] later, and args are
-// scanned for it before any other source runs, so put this first. A flag that was not
-// given, or that names a file which is not there, is a no op.
-func FileFromFlag(dec Decoder, set *flag.FlagSet, name string, args []string) Source {
-	return fileFromFlag(dec, set, name, args, false)
+// FileFromFlag decodes the config file the user named with a flag, -config app.json.
+// It scans args for the flag itself, so it can run before any other source and the file
+// is read even though it was named on the command line. [Parse] registers the flag in
+// the set of every [Flags] or [FlagSet] in the same call, so the flag shows up in the
+// usage output and needs no set of its own:
+//
+//	cnfg.Parse(Config{},
+//		cnfg.FileFromFlag(json.Unmarshal, "config", os.Args[1:]),
+//		cnfg.Env("APP"),
+//		cnfg.Flags(),
+//	)
+//
+// A flag that was not given, or that names a file which is not there, is a no op.
+func FileFromFlag(dec Decoder, name string, args []string) Source {
+	return &fileFlagSource{dec: dec, name: name, args: args}
 }
 
 // FileFromFlagStrict is [FileFromFlag] that also fails with [ErrUnknownField] on a key
 // the config has no field for.
-func FileFromFlagStrict(dec Decoder, set *flag.FlagSet, name string, args []string) Source {
-	return fileFromFlag(dec, set, name, args, true)
+func FileFromFlagStrict(dec Decoder, name string, args []string) Source {
+	return &fileFlagSource{dec: dec, name: name, args: args, strict: true}
 }
 
-func fileFromFlag(dec Decoder, set *flag.FlagSet, name string, args []string, strict bool) Source {
-	set.String(name, "", "path to config file")
+type fileFlagSource struct {
+	dec    Decoder
+	name   string
+	args   []string
+	strict bool
+}
 
-	return sourceFunc(func(v reflect.Value) error {
-		ff, err := fields(v)
-		if err != nil {
-			return err
-		}
+func (s *fileFlagSource) apply(v reflect.Value) error {
+	ff, err := fields(v)
+	if err != nil {
+		return err
+	}
 
-		path := pathFromArgs(set.Name(), name, args, ff)
-		if path == "" {
-			return nil
+	path := pathFromArgs(s.name, s.args, ff)
+	if path == "" {
+		return nil
+	}
+	return readFile(v, s.dec, path, s.strict)
+}
+
+// registerFileFlags adds the flag of every FileFromFlag source to the set of every
+// FlagSet source, so the real parse knows the flag and lists it in the usage output. A
+// flag the set already has is left alone.
+func registerFileFlags(sources []Source) {
+	var names []string
+	for _, s := range sources {
+		if f, ok := s.(*fileFlagSource); ok {
+			names = append(names, f.name)
 		}
-		return readFile(v, dec, path, strict)
-	})
+	}
+
+	for _, s := range sources {
+		f, ok := s.(*flagSource)
+		if !ok {
+			continue
+		}
+		for _, name := range names {
+			if f.set.Lookup(name) == nil {
+				f.set.String(name, "", "path to config file")
+			}
+		}
+	}
 }
 
 // FileFromEnv decodes the config file named by an environment variable,
@@ -126,8 +162,8 @@ func fileFromEnv(dec Decoder, name string, strict bool) Source {
 // pathFromArgs parses args with throwaway values to find out the config file path before
 // any of the real values are set. Errors are left to the real flag parsing, which reports
 // them with the proper usage output.
-func pathFromArgs(setName, name string, args []string, ff []field) string {
-	set := flag.NewFlagSet(setName, flag.ContinueOnError)
+func pathFromArgs(name string, args []string, ff []field) string {
+	set := flag.NewFlagSet("", flag.ContinueOnError)
 	set.SetOutput(io.Discard)
 
 	path := set.String(name, "", "")

@@ -3,7 +3,6 @@ package cnfg_test
 import (
 	"encoding/json"
 	"errors"
-	"flag"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -165,9 +164,8 @@ func TestStrictEmbeddedAndPointers(t *testing.T) {
 
 func TestStrictFileFromFlag(t *testing.T) {
 	file := writeFile(t, "flagged.json", `{"addr": ":1", "adrr": ":2"}`)
-	set := flag.NewFlagSet("app", flag.ContinueOnError)
 
-	_, err := cnfg.Parse(Strictly{}, cnfg.FileFromFlagStrict(json.Unmarshal, set, "config", []string{"-config", file}))
+	_, err := cnfg.Parse(Strictly{}, cnfg.FileFromFlagStrict(json.Unmarshal, "config", []string{"-config", file}))
 	if !errors.Is(err, cnfg.ErrUnknownField) {
 		t.Fatalf("got %v, want ErrUnknownField", err)
 	}

@@ -102,7 +102,7 @@ of your config together with the error when a source fails.
 | `FlagSet(set, args)` | Command line flags, from your own flag set and args. |
 | `File(dec, path)` | Config file at path, decoded with dec. |
 | `Glob(dec, pattern)` | Every file matching the glob, in lexical order. |
-| `FileFromFlag(dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
+| `FileFromFlag(dec, name, args)` | Config file the user gave with a flag, `-config app.json`. |
 | `FileFromEnv(dec, name)` | Config file named by an env var, `APP_CONFIG=app.json`. |
 | `Func(fn)` | Whatever your own `func(T) (T, error)` does. |
 
@@ -165,18 +165,16 @@ cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.File(hcl.Unmarshal, "/etc/app
 Values from files go through the same parsing as env vars and flags, so a duration is written
 as `"30s"` and a `net.IP` as `"10.0.0.1"` in every source.
 
-To let the user point at a config file with a flag, give `FileFromFlag` and `FlagSet` the same
-flag set and args. `FileFromFlag` registers the flag and reads the file before the other sources,
-so the file is loaded even though it was named on the command line:
+To let the user point at a config file with a flag, put `FileFromFlag` first. It scans the args
+for the flag on its own, so the file is read before the other sources even though it was named on
+the command line, and `Parse` registers the flag in the set of the `Flags` or `FlagSet` in the
+same call, so it is listed in the usage output like any other:
 
 ```go
-set := flag.NewFlagSet("app", flag.ContinueOnError)
-args := os.Args[1:]
-
 cfg, err := cnfg.Parse(Config{Addr: ":8080"},
-    cnfg.FileFromFlag(json.Unmarshal, set, "config", args),
+    cnfg.FileFromFlag(json.Unmarshal, "config", os.Args[1:]),
     cnfg.Env("APP"),
-    cnfg.FlagSet(set, args),
+    cnfg.Flags(),
 )
 ```
 
