@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"io"
 	"os"
 	"strings"
 	"testing"
@@ -158,10 +157,7 @@ func TestBrokenFileIsStillAnError(t *testing.T) {
 }
 
 func TestFileFromFlagNotStruct(t *testing.T) {
-	set := flag.NewFlagSet("test", flag.ContinueOnError)
-	set.SetOutput(io.Discard)
-
-	_, err := cnfg.Parse(42, cnfg.FileFromFlag(json.Unmarshal, set, "config", nil))
+	_, err := cnfg.Parse(42, cnfg.FileFromFlag(json.Unmarshal, "config", nil))
 	if !errors.Is(err, cnfg.ErrNotStruct) {
 		t.Errorf("got %v, want ErrNotStruct", err)
 	}

@@ -262,7 +262,7 @@ func TestFileFromFlag(t *testing.T) {
 	set.SetOutput(io.Discard)
 
 	cfg, err := cnfg.Parse(defaults(),
-		cnfg.FileFromFlag(json.Unmarshal, set, "config", args),
+		cnfg.FileFromFlag(json.Unmarshal, "config", args),
 		cnfg.FlagSet(set, args),
 	)
 	if err != nil {
@@ -281,13 +281,64 @@ func TestFileFromFlagMissing(t *testing.T) {
 	set.SetOutput(io.Discard)
 
 	cfg, err := cnfg.Parse(defaults(),
-		cnfg.FileFromFlag(json.Unmarshal, set, "config", args),
+		cnfg.FileFromFlag(json.Unmarshal, "config", args),
 		cnfg.FlagSet(set, args),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	assertEqual(t, "no file given", ":1234", cfg.Addr)
+}
+
+func TestFileFromFlagWithFlags(t *testing.T) {
+	file := writeFile(t, "app.json", `{"addr": ":1111"}`)
+	args := os.Args
+	os.Args = []string{"app", "-config", file, "-verbose"}
+	defer func() { os.Args = args }()
+
+	cfg, err := cnfg.Parse(defaults(),
+		cnfg.FileFromFlag(json.Unmarshal, "config", os.Args[1:]),
+		cnfg.Flags(),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertEqual(t, "file from flag", ":1111", cfg.Addr)
+	assertEqual(t, "flag", true, cfg.Debug)
+}
+
+func TestFileFromFlagAfterFlagSet(t *testing.T) {
+	file := writeFile(t, "app.json", `{"addr": ":1111"}`)
+	args := []string{"-config", file, "-addr", ":2222"}
+	set := flag.NewFlagSet("test", flag.ContinueOnError)
+	set.SetOutput(io.Discard)
+
+	cfg, err := cnfg.Parse(defaults(),
+		cnfg.FlagSet(set, args),
+		cnfg.FileFromFlag(json.Unmarshal, "config", args),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertEqual(t, "file after flags wins", ":1111", cfg.Addr)
+}
+
+func TestFileFromFlagOwnFlag(t *testing.T) {
+	file := writeFile(t, "app.json", `{"addr": ":1111"}`)
+	args := []string{"-config", file}
+	set := flag.NewFlagSet("test", flag.ContinueOnError)
+	set.SetOutput(io.Discard)
+	own := set.String("config", "", "my own config flag")
+
+	cfg, err := cnfg.Parse(defaults(),
+		cnfg.FileFromFlag(json.Unmarshal, "config", args),
+		cnfg.FlagSet(set, args),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertEqual(t, "file from flag", ":1111", cfg.Addr)
+	assertEqual(t, "own flag kept", file, *own)
 }
 
 func TestFileFromEnv(t *testing.T) {
@@ -439,13 +490,10 @@ func TestDuplicateName(t *testing.T) {
 		Host string `cnfg:"addr"`
 	}
 
-	set := flag.NewFlagSet("test", flag.ContinueOnError)
-	set.SetOutput(io.Discard)
-
 	sources := map[string]cnfg.Source{
 		"flags":          flags(),
 		"env":            env(),
-		"file from flag": cnfg.FileFromFlag(json.Unmarshal, set, "config", nil),
+		"file from flag": cnfg.FileFromFlag(json.Unmarshal, "config", nil),
 	}
 
 	for name, source := range sources {
@@ -502,7 +550,7 @@ func TestUsage(t *testing.T) {
 	args := []string{"-h"}
 
 	_, _ = cnfg.Parse(defaults(),
-		cnfg.FileFromFlag(json.Unmarshal, set, "config", args),
+		cnfg.FileFromFlag(json.Unmarshal, "config", args),
 		cnfg.FlagSet(set, args),
 	)
 

@@ -81,6 +81,7 @@ func Parse[T any](defaults T, sources ...Source) (T, error) {
 		return zero, fmt.Errorf("%w, got %T", ErrNotStruct, cfg)
 	}
 
+	registerFileFlags(sources)
 	for _, s := range sources {
 		if err := s.apply(v); err != nil {
 			var zero T

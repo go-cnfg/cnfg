@@ -61,7 +61,7 @@ func ExampleFlagSet() {
 	args := []string{"-h"}
 
 	_, _ = cnfg.Parse(AppConfig{Addr: ":8080", Timeout: 5 * time.Second},
-		cnfg.FileFromFlag(json.Unmarshal, set, "config", args),
+		cnfg.FileFromFlag(json.Unmarshal, "config", args),
 		cnfg.FlagSet(set, args),
 	)
 
@@ -199,7 +199,7 @@ func ExampleFileFromFlag() {
 	args := []string{"-config", file, "-debug"}
 
 	cfg, err := cnfg.Parse(AppConfig{Addr: ":8080"},
-		cnfg.FileFromFlag(json.Unmarshal, set, "config", args),
+		cnfg.FileFromFlag(json.Unmarshal, "config", args),
 		cnfg.FlagSet(set, args),
 	)
 	fmt.Printf("%+v %v\n", cfg, err)
@@ -327,7 +327,7 @@ func ExampleFileFromFlagStrict() {
 	args := []string{"-config", file}
 
 	_, err := cnfg.Parse(AppConfig{},
-		cnfg.FileFromFlagStrict(json.Unmarshal, set, "config", args),
+		cnfg.FileFromFlagStrict(json.Unmarshal, "config", args),
 		cnfg.FlagSet(set, args),
 	)
 	fmt.Println(strings.TrimPrefix(err.Error(), file+": "))

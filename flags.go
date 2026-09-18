@@ -17,28 +17,35 @@ func Flags() Source {
 	return FlagSet(flag.NewFlagSet(filepath.Base(os.Args[0]), flag.ContinueOnError), os.Args[1:])
 }
 
-// FlagSet parses args with set, registering one flag per config field. A flag the args
-// do not carry leaves its field alone, flags already registered in set are left to
-// their own values, and set.Args() holds the positional args once [Parse] is done.
-// The error wraps [ErrParseFlags], or [flag.ErrHelp] when the user asked for the usage
-// output.
+// FlagSet parses args with set, registering one flag per config field and the flag of
+// every [FileFromFlag] in the same [Parse]. A flag the args do not carry leaves its
+// field alone, flags already registered in set are left to their own values, and
+// set.Args() holds the positional args once [Parse] is done. The error wraps
+// [ErrParseFlags], or [flag.ErrHelp] when the user asked for the usage output.
 func FlagSet(set *flag.FlagSet, args []string) Source {
-	return sourceFunc(func(v reflect.Value) error {
-		ff, err := fields(v)
-		if err != nil {
-			return err
-		}
+	return &flagSource{set: set, args: args}
+}
 
-		set.Usage = usageFunc(set, ff)
-		for _, f := range ff {
-			set.Var(&flagValue{value: f.value}, f.name, f.usage)
-		}
+type flagSource struct {
+	set  *flag.FlagSet
+	args []string
+}
 
-		if err := set.Parse(args); err != nil {
-			return fmt.Errorf("%w: %w", ErrParseFlags, err)
-		}
-		return nil
-	})
+func (s *flagSource) apply(v reflect.Value) error {
+	ff, err := fields(v)
+	if err != nil {
+		return err
+	}
+
+	s.set.Usage = usageFunc(s.set, ff)
+	for _, f := range ff {
+		s.set.Var(&flagValue{value: f.value}, f.name, f.usage)
+	}
+
+	if err := s.set.Parse(s.args); err != nil {
+		return fmt.Errorf("%w: %w", ErrParseFlags, err)
+	}
+	return nil
 }
 
 // usageFunc lists the flags with their type and default value. Both are read before the
