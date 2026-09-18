@@ -40,6 +40,17 @@ func ExampleParse() {
 	// Output: {Addr::8080 Timeout:1m0s Debug:true}
 }
 
+func ExampleMustParse() {
+	args := os.Args
+	os.Args = []string{"app", "-addr", ":9090", "-timeout", "1m"}
+	defer func() { os.Args = args }()
+
+	cfg := cnfg.MustParse(AppConfig{Addr: ":8080"}, cnfg.Env("APP"), cnfg.Flags())
+
+	fmt.Printf("%+v\n", cfg)
+	// Output: {Addr::9090 Timeout:1m0s Debug:false}
+}
+
 func ExampleFunc() {
 	withDefaultPort := func(cfg AppConfig) (AppConfig, error) {
 		if cfg.Addr == "" {
