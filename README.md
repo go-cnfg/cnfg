@@ -398,6 +398,9 @@ failed to parse flags: flag provided but not defined: -prot
 true
 ```
 
+`Parse` leaves that choice alone, so the set keeps whatever it was made with. `MustParse` does
+not, see [exiting on error](#exiting-on-error).
+
 Flag parsing is a source like any other, so a library with a different flavor of flags takes the
 same place in the chain. With [go-flags](https://github.com/jessevdk/go-flags) the flags come
 from its own struct tags, and `cnfg.Func` wraps the parse:
@@ -463,6 +466,28 @@ Two errors it adds nothing of its own to, since they are on the screen by the ti
 `-h` is the user asking for the usage output rather than a failure, so the flag set writes the
 listing and `MustParse` exits with status 0. A flag that will not parse is reported by the flag
 set as well, together with the usage, and that one exits with status 1.
+
+### The flag set is switched to ContinueOnError
+
+The status is `MustParse`'s to pick, so it switches every flag set it is given to
+`flag.ContinueOnError` before reading it. The set keeps that setting after the call, so this is
+a change to an object you own, not only to how `MustParse` reads it.
+
+```go
+set := flag.NewFlagSet("app", flag.ExitOnError)
+
+cfg := cnfg.MustParse(Config{}, cnfg.FlagSet(set, os.Args[1:]))
+
+// set.ErrorHandling() is flag.ContinueOnError from here on
+```
+
+Without it a set made with `flag.ExitOnError` would end the program from inside the flag
+package, with status 2 for a flag it could not parse, and one made with `flag.PanicOnError`
+would panic. Either way `MustParse` would never get to pick.
+
+`Parse` does none of this. A set handed to `Parse` keeps the error handling it was made with,
+which is why the [Flags](#flags) section asks you to pick `flag.ContinueOnError` yourself
+there.
 
 Use `Parse` where the caller has somewhere better to put the error, a library, a test, or a
 `main` that logs it its own way.
