@@ -11,6 +11,10 @@ import (
 // underscores and the prefix in front, so field Addr of struct field Server is read
 // from PREFIX_SERVER_ADDR, or from SERVER_ADDR when prefix is empty. A variable that
 // is not set leaves its field alone.
+//
+// [EnvTag] renames a field here and nowhere else, `env:"LISTENADDR"`, for a variable
+// that does not follow from the field name. Two fields that end up on the same variable
+// fail with [ErrDuplicateName].
 func Env(prefix string) Source {
 	return sourceFunc(func(v reflect.Value) error {
 		return envFrom(v, prefix, os.Environ(), false)
@@ -56,7 +60,10 @@ func envFrom(v reflect.Value, prefix string, environ []string, strict bool) erro
 
 	known := make(map[string]struct{}, len(ff))
 	for _, f := range ff {
-		key := envName(prefix, f.name)
+		key := envName(prefix, f.env)
+		if _, ok := known[key]; ok {
+			return fmt.Errorf("%w: %s", ErrDuplicateName, key)
+		}
 		known[key] = struct{}{}
 
 		val, ok := env[key]
