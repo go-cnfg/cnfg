@@ -22,10 +22,10 @@ type Strictly struct {
 	Secret   string `cnfg:"-"`
 }
 
-func strictFile(t *testing.T, content string) cnfg.Parser[Strictly] {
+func strictFile(t *testing.T, content string) cnfg.Source {
 	t.Helper()
 
-	return cnfg.FileStrict[Strictly](json.Unmarshal, writeFile(t, "strict.json", content))
+	return cnfg.FileStrict(json.Unmarshal, writeFile(t, "strict.json", content))
 }
 
 func TestStrictFileAccepts(t *testing.T) {
@@ -72,7 +72,7 @@ func TestStrictFileRejects(t *testing.T) {
 func TestStrictFileIsOptIn(t *testing.T) {
 	file := writeFile(t, "lenient.json", `{"addr": ":1", "worker_cont": 8}`)
 
-	if _, err := cnfg.Parse(Strictly{}, cnfg.File[Strictly](json.Unmarshal, file)); err != nil {
+	if _, err := cnfg.Parse(Strictly{}, cnfg.File(json.Unmarshal, file)); err != nil {
 		t.Errorf("extra keys are fine outside FileStrict: %v", err)
 	}
 }
@@ -80,7 +80,7 @@ func TestStrictFileIsOptIn(t *testing.T) {
 func TestStrictFileFromEnv(t *testing.T) {
 	t.Setenv("APP_CONFIG", writeFile(t, "env.json", `{"addr": ":1", "adrr": ":2"}`))
 
-	_, err := cnfg.Parse(Strictly{}, cnfg.FileFromEnvStrict[Strictly](json.Unmarshal, "APP_CONFIG"))
+	_, err := cnfg.Parse(Strictly{}, cnfg.FileFromEnvStrict(json.Unmarshal, "APP_CONFIG"))
 	if !errors.Is(err, cnfg.ErrUnknownField) {
 		t.Fatalf("got %v, want ErrUnknownField", err)
 	}
@@ -90,12 +90,12 @@ func TestStrictFileFromEnv(t *testing.T) {
 }
 
 func TestStrictEnv(t *testing.T) {
-	ok := cnfg.EnvFromStrict[Strictly]("APP", []string{"APP_ADDR=:1", "PATH=/bin", "OTHER_THING=x"})
+	ok := cnfg.EnvFromStrict("APP", []string{"APP_ADDR=:1", "PATH=/bin", "OTHER_THING=x"})
 	if _, err := cnfg.Parse(Strictly{}, ok); err != nil {
 		t.Errorf("variables without the prefix are not ours: %v", err)
 	}
 
-	bad := cnfg.EnvFromStrict[Strictly]("APP", []string{"APP_ADDR=:1", "APP_ADRR=:2"})
+	bad := cnfg.EnvFromStrict("APP", []string{"APP_ADDR=:1", "APP_ADRR=:2"})
 	_, err := cnfg.Parse(Strictly{}, bad)
 	if !errors.Is(err, cnfg.ErrUnknownField) {
 		t.Fatalf("got %v, want ErrUnknownField", err)
@@ -109,7 +109,7 @@ func TestStrictEnvFromProcess(t *testing.T) {
 	t.Setenv("APP_ADDR", ":1")
 	t.Setenv("APP_ADRR", ":2")
 
-	_, err := cnfg.Parse(Strictly{}, cnfg.EnvStrict[Strictly]("APP"))
+	_, err := cnfg.Parse(Strictly{}, cnfg.EnvStrict("APP"))
 	if !errors.Is(err, cnfg.ErrUnknownField) {
 		t.Fatalf("got %v, want ErrUnknownField", err)
 	}
@@ -119,7 +119,7 @@ func TestStrictEnvFromProcess(t *testing.T) {
 }
 
 func TestStrictEnvNeedsPrefix(t *testing.T) {
-	_, err := cnfg.Parse(Strictly{}, cnfg.EnvFromStrict[Strictly]("", []string{"ADDR=:1"}))
+	_, err := cnfg.Parse(Strictly{}, cnfg.EnvFromStrict("", []string{"ADDR=:1"}))
 	if !errors.Is(err, cnfg.ErrNoPrefix) {
 		t.Errorf("got %v, want ErrNoPrefix", err)
 	}
@@ -128,7 +128,7 @@ func TestStrictEnvNeedsPrefix(t *testing.T) {
 func TestStrictGlob(t *testing.T) {
 	dir := writeDir(t, map[string]string{"10-base.conf": `{"addr": ":1"}`, "20-typo.conf": `{"adrr": ":2"}`})
 
-	_, err := cnfg.Parse(Strictly{}, cnfg.GlobStrict[Strictly](json.Unmarshal, filepath.Join(dir, "*.conf")))
+	_, err := cnfg.Parse(Strictly{}, cnfg.GlobStrict(json.Unmarshal, filepath.Join(dir, "*.conf")))
 	if !errors.Is(err, cnfg.ErrUnknownField) {
 		t.Fatalf("got %v, want ErrUnknownField", err)
 	}
@@ -152,12 +152,12 @@ type Common struct {
 func TestStrictEmbeddedAndPointers(t *testing.T) {
 	file := writeFile(t, "embedded.json", `{"log-level": "warn", "addr": ":1", "server": {"TLSCert": "a.pem"}, "extra": {"max_conns": 2}}`)
 
-	if _, err := cnfg.Parse(StrictEmbedded{}, cnfg.FileStrict[StrictEmbedded](json.Unmarshal, file)); err != nil {
+	if _, err := cnfg.Parse(StrictEmbedded{}, cnfg.FileStrict(json.Unmarshal, file)); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	typo := writeFile(t, "typo.json", `{"log-lvl": "warn"}`)
-	_, err := cnfg.Parse(StrictEmbedded{}, cnfg.FileStrict[StrictEmbedded](json.Unmarshal, typo))
+	_, err := cnfg.Parse(StrictEmbedded{}, cnfg.FileStrict(json.Unmarshal, typo))
 	if !errors.Is(err, cnfg.ErrUnknownField) {
 		t.Fatalf("got %v, want ErrUnknownField", err)
 	}
@@ -167,7 +167,7 @@ func TestStrictFileFromFlag(t *testing.T) {
 	file := writeFile(t, "flagged.json", `{"addr": ":1", "adrr": ":2"}`)
 	set := flag.NewFlagSet("app", flag.ContinueOnError)
 
-	_, err := cnfg.Parse(Strictly{}, cnfg.FileFromFlagStrict[Strictly](json.Unmarshal, set, "config", []string{"-config", file}))
+	_, err := cnfg.Parse(Strictly{}, cnfg.FileFromFlagStrict(json.Unmarshal, set, "config", []string{"-config", file}))
 	if !errors.Is(err, cnfg.ErrUnknownField) {
 		t.Fatalf("got %v, want ErrUnknownField", err)
 	}

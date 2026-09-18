@@ -54,18 +54,18 @@ func defaults() Config {
 }
 
 // flags parses the given args with a quiet flag set.
-func flags[T any](args ...string) cnfg.Parser[T] {
+func flags(args ...string) cnfg.Source {
 	set := flag.NewFlagSet("test", flag.ContinueOnError)
 	set.SetOutput(io.Discard)
-	return cnfg.FlagSet[T](set, args)
+	return cnfg.FlagSet(set, args)
 }
 
-func env[T any](environ ...string) cnfg.Parser[T] {
-	return cnfg.EnvFrom[T]("", environ)
+func env(environ ...string) cnfg.Source {
+	return cnfg.EnvFrom("", environ)
 }
 
 func TestDefaultsAreKept(t *testing.T) {
-	cfg, err := cnfg.Parse(defaults(), env[Config](), flags[Config]())
+	cfg, err := cnfg.Parse(defaults(), env(), flags())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestDefaultsAreKept(t *testing.T) {
 	}
 }
 
-func TestNoParsers(t *testing.T) {
+func TestNoSources(t *testing.T) {
 	cfg, err := cnfg.Parse(defaults())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -94,9 +94,9 @@ func TestPrecedence(t *testing.T) {
 	}`)
 
 	cfg, err := cnfg.Parse(defaults(),
-		cnfg.File[Config](json.Unmarshal, file),
-		env[Config]("ADDR=:2222", "WORKER_COUNT=2", "TIMEOUT=2m"),
-		flags[Config]("-addr", ":3333"),
+		cnfg.File(json.Unmarshal, file),
+		env("ADDR=:2222", "WORKER_COUNT=2", "TIMEOUT=2m"),
+		flags("-addr", ":3333"),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -113,18 +113,18 @@ func TestPrecedence(t *testing.T) {
 	}
 }
 
-func TestParserOrder(t *testing.T) {
+func TestSourceOrder(t *testing.T) {
 	cfg, err := cnfg.Parse(defaults(),
-		flags[Config]("-addr", ":3333"),
-		env[Config]("ADDR=:2222"),
+		flags("-addr", ":3333"),
+		env("ADDR=:2222"),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertEqual(t, "last parser wins", ":2222", cfg.Addr)
+	assertEqual(t, "last source wins", ":2222", cfg.Addr)
 }
 
-func TestCustomParser(t *testing.T) {
+func TestFuncSource(t *testing.T) {
 	errEmptyAddr := errors.New("addr is empty")
 	validate := func(cfg Config) (Config, error) {
 		if cfg.Addr == "" {
@@ -134,13 +134,13 @@ func TestCustomParser(t *testing.T) {
 		return cfg, nil
 	}
 
-	cfg, err := cnfg.Parse(defaults(), flags[Config]("-addr", "http://:1234"), validate)
+	cfg, err := cnfg.Parse(defaults(), flags("-addr", "http://:1234"), cnfg.Func(validate))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertEqual(t, "parser applied", ":1234", cfg.Addr)
+	assertEqual(t, "source applied", ":1234", cfg.Addr)
 
-	if _, err := cnfg.Parse(defaults(), flags[Config]("-addr", ""), validate); !errors.Is(err, errEmptyAddr) {
+	if _, err := cnfg.Parse(defaults(), flags("-addr", ""), cnfg.Func(validate)); !errors.Is(err, errEmptyAddr) {
 		t.Errorf("got %v, want errEmptyAddr", err)
 	}
 }
@@ -159,7 +159,7 @@ func TestFile(t *testing.T) {
 		"limits": {"rps": 5}
 	}`)
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.File[Config](json.Unmarshal, file))
+	cfg, err := cnfg.Parse(defaults(), cnfg.File(json.Unmarshal, file))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -180,7 +180,7 @@ func TestFile(t *testing.T) {
 }
 
 func TestFlags(t *testing.T) {
-	cfg, err := cnfg.Parse(defaults(), flags[Config](
+	cfg, err := cnfg.Parse(defaults(), flags(
 		"-verbose",
 		"-timeout=250ms",
 		"-hosts", "a,b, c",
@@ -208,7 +208,7 @@ func TestFlags(t *testing.T) {
 }
 
 func TestEnv(t *testing.T) {
-	cfg, err := cnfg.Parse(defaults(), env[Config](
+	cfg, err := cnfg.Parse(defaults(), env(
 		"VERBOSE=true",
 		"HOSTS=a,b",
 		"IP=10.0.0.2",
@@ -236,7 +236,7 @@ func TestEnv(t *testing.T) {
 
 func TestEnvPrefix(t *testing.T) {
 	cfg, err := cnfg.Parse(defaults(),
-		cnfg.EnvFrom[Config]("app_", []string{"ADDR=:1111", "APP_ADDR=:2222"}),
+		cnfg.EnvFrom("app_", []string{"ADDR=:1111", "APP_ADDR=:2222"}),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -247,7 +247,7 @@ func TestEnvPrefix(t *testing.T) {
 func TestEnvFromProcess(t *testing.T) {
 	t.Setenv("APP_ADDR", ":7777")
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.Env[Config]("APP"))
+	cfg, err := cnfg.Parse(defaults(), cnfg.Env("APP"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -262,8 +262,8 @@ func TestFileFromFlag(t *testing.T) {
 	set.SetOutput(io.Discard)
 
 	cfg, err := cnfg.Parse(defaults(),
-		cnfg.FileFromFlag[Config](json.Unmarshal, set, "config", args),
-		cnfg.FlagSet[Config](set, args),
+		cnfg.FileFromFlag(json.Unmarshal, set, "config", args),
+		cnfg.FlagSet(set, args),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -281,8 +281,8 @@ func TestFileFromFlagMissing(t *testing.T) {
 	set.SetOutput(io.Discard)
 
 	cfg, err := cnfg.Parse(defaults(),
-		cnfg.FileFromFlag[Config](json.Unmarshal, set, "config", args),
-		cnfg.FlagSet[Config](set, args),
+		cnfg.FileFromFlag(json.Unmarshal, set, "config", args),
+		cnfg.FlagSet(set, args),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -296,8 +296,8 @@ func TestFileFromEnv(t *testing.T) {
 	t.Setenv("APP_VERBOSE", "true")
 
 	cfg, err := cnfg.Parse(defaults(),
-		cnfg.FileFromEnv[Config](json.Unmarshal, "APP_CONFIG"),
-		cnfg.Env[Config]("APP"),
+		cnfg.FileFromEnv(json.Unmarshal, "APP_CONFIG"),
+		cnfg.Env("APP"),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -311,7 +311,7 @@ func TestFileFromEnv(t *testing.T) {
 func TestFileFromEnvUnset(t *testing.T) {
 	t.Setenv("APP_CONFIG", "")
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.FileFromEnv[Config](json.Unmarshal, "APP_CONFIG"))
+	cfg, err := cnfg.Parse(defaults(), cnfg.FileFromEnv(json.Unmarshal, "APP_CONFIG"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -321,7 +321,7 @@ func TestFileFromEnvUnset(t *testing.T) {
 func TestMissingFileIsSkipped(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "missing.json")
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.File[Config](json.Unmarshal, missing))
+	cfg, err := cnfg.Parse(defaults(), cnfg.File(json.Unmarshal, missing))
 	if err != nil {
 		t.Fatalf("a file that is not there should be a no op: %v", err)
 	}
@@ -337,7 +337,7 @@ func TestUnreadableFileIsAnError(t *testing.T) {
 		t.Skip("root reads it anyway")
 	}
 
-	_, err := cnfg.Parse(defaults(), cnfg.File[Config](json.Unmarshal, path))
+	_, err := cnfg.Parse(defaults(), cnfg.File(json.Unmarshal, path))
 	if !errors.Is(err, cnfg.ErrReadFile) {
 		t.Errorf("got %v, want ErrReadFile", err)
 	}
@@ -355,7 +355,7 @@ func TestCustomDecoder(t *testing.T) {
 		(*tree)[key] = val
 		return nil
 	}
-	cfg, err := cnfg.Parse(defaults(), cnfg.File[Config](decode, file))
+	cfg, err := cnfg.Parse(defaults(), cnfg.File(decode, file))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -365,39 +365,39 @@ func TestCustomDecoder(t *testing.T) {
 func TestErrors(t *testing.T) {
 	tests := []struct {
 		name   string
-		parser cnfg.Parser[Config]
+		source cnfg.Source
 		want   error
 	}{
 		{
 			name:   "invalid env value",
-			parser: env[Config]("WORKER_COUNT=many"),
+			source: env("WORKER_COUNT=many"),
 			want:   cnfg.ErrInvalidValue,
 		},
 		{
 			name:   "invalid flag value",
-			parser: flags[Config]("-timeout", "soon"),
+			source: flags("-timeout", "soon"),
 			want:   cnfg.ErrParseFlags,
 		},
 		{
 			name:   "unknown flag",
-			parser: flags[Config]("-nope"),
+			source: flags("-nope"),
 			want:   cnfg.ErrParseFlags,
 		},
 		{
 			name:   "help",
-			parser: flags[Config]("-h"),
+			source: flags("-h"),
 			want:   flag.ErrHelp,
 		},
 		{
 			name:   "broken file",
-			parser: cnfg.File[Config](json.Unmarshal, writeFile(t, "config.json", "{")),
+			source: cnfg.File(json.Unmarshal, writeFile(t, "config.json", "{")),
 			want:   cnfg.ErrDecodeFile,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg, err := cnfg.Parse(defaults(), tc.parser)
+			cfg, err := cnfg.Parse(defaults(), tc.source)
 			if !errors.Is(err, tc.want) {
 				t.Errorf("got %v, want %v", err, tc.want)
 			}
@@ -409,16 +409,27 @@ func TestErrors(t *testing.T) {
 }
 
 func TestNotStruct(t *testing.T) {
-	if _, err := cnfg.Parse(42, flags[int]()); !errors.Is(err, cnfg.ErrNotStruct) {
+	if _, err := cnfg.Parse(42, flags()); !errors.Is(err, cnfg.ErrNotStruct) {
 		t.Errorf("flags: got %v, want ErrNotStruct", err)
 	}
-	if _, err := cnfg.Parse(42, env[int]()); !errors.Is(err, cnfg.ErrNotStruct) {
+	if _, err := cnfg.Parse(42, env()); !errors.Is(err, cnfg.ErrNotStruct) {
 		t.Errorf("env: got %v, want ErrNotStruct", err)
 	}
 
 	file := writeFile(t, "config.json", "{}")
-	if _, err := cnfg.Parse(42, cnfg.File[int](json.Unmarshal, file)); !errors.Is(err, cnfg.ErrNotStruct) {
+	if _, err := cnfg.Parse(42, cnfg.File(json.Unmarshal, file)); !errors.Is(err, cnfg.ErrNotStruct) {
 		t.Errorf("file: got %v, want ErrNotStruct", err)
+	}
+	if _, err := cnfg.Parse(42); !errors.Is(err, cnfg.ErrNotStruct) {
+		t.Errorf("no sources: got %v, want ErrNotStruct", err)
+	}
+}
+
+func TestFuncOfAnotherType(t *testing.T) {
+	other := cnfg.Func(func(s Server) (Server, error) { return s, nil })
+
+	if _, err := cnfg.Parse(defaults(), other); !errors.Is(err, cnfg.ErrWrongType) {
+		t.Errorf("got %v, want ErrWrongType", err)
 	}
 }
 
@@ -428,8 +439,21 @@ func TestDuplicateName(t *testing.T) {
 		Host string `cnfg:"addr"`
 	}
 
-	if _, err := cnfg.Parse(dup{}, flags[dup]()); !errors.Is(err, cnfg.ErrDuplicateName) {
-		t.Errorf("got %v, want ErrDuplicateName", err)
+	set := flag.NewFlagSet("test", flag.ContinueOnError)
+	set.SetOutput(io.Discard)
+
+	sources := map[string]cnfg.Source{
+		"flags":          flags(),
+		"env":            env(),
+		"file from flag": cnfg.FileFromFlag(json.Unmarshal, set, "config", nil),
+	}
+
+	for name, source := range sources {
+		t.Run(name, func(t *testing.T) {
+			if _, err := cnfg.Parse(dup{}, source); !errors.Is(err, cnfg.ErrDuplicateName) {
+				t.Errorf("got %v, want ErrDuplicateName", err)
+			}
+		})
 	}
 }
 
@@ -446,8 +470,8 @@ func TestEmbedded(t *testing.T) {
 	file := writeFile(t, "config.json", `{"log-level": "warn", "name": "from-file"}`)
 
 	cfg, err := cnfg.Parse(Service{},
-		cnfg.File[Service](json.Unmarshal, file),
-		flags[Service]("-log-level", "debug"),
+		cnfg.File(json.Unmarshal, file),
+		flags("-log-level", "debug"),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -460,7 +484,7 @@ func TestFlagSetArgs(t *testing.T) {
 	set := flag.NewFlagSet("test", flag.ContinueOnError)
 	args := []string{"-addr", ":9999", "one", "two"}
 
-	cfg, err := cnfg.Parse(defaults(), cnfg.FlagSet[Config](set, args))
+	cfg, err := cnfg.Parse(defaults(), cnfg.FlagSet(set, args))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -478,8 +502,8 @@ func TestUsage(t *testing.T) {
 	args := []string{"-h"}
 
 	_, _ = cnfg.Parse(defaults(),
-		cnfg.FileFromFlag[Config](json.Unmarshal, set, "config", args),
-		cnfg.FlagSet[Config](set, args),
+		cnfg.FileFromFlag(json.Unmarshal, set, "config", args),
+		cnfg.FlagSet(set, args),
 	)
 
 	for _, want := range []string{
@@ -503,7 +527,7 @@ func TestUsageWithoutName(t *testing.T) {
 	set := flag.NewFlagSet("", flag.ContinueOnError)
 	set.SetOutput(buf)
 
-	_, _ = cnfg.Parse(defaults(), cnfg.FlagSet[Config](set, []string{"-h"}))
+	_, _ = cnfg.Parse(defaults(), cnfg.FlagSet(set, []string{"-h"}))
 
 	if !strings.HasPrefix(buf.String(), "Usage:\n") {
 		t.Errorf("got %q", buf.String())
@@ -526,11 +550,11 @@ func assertEqual[T comparable](t *testing.T, msg string, want, got T) {
 	}
 }
 
-func TestEnvIsReadWhenTheParserRuns(t *testing.T) {
-	parser := cnfg.Env[Config]("APP")
+func TestEnvIsReadWhenTheSourceRuns(t *testing.T) {
+	source := cnfg.Env("APP")
 	t.Setenv("APP_ADDR", ":7778")
 
-	cfg, err := cnfg.Parse(defaults(), parser)
+	cfg, err := cnfg.Parse(defaults(), source)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

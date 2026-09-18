@@ -34,14 +34,14 @@ type Edges struct {
 	Ignored chan int
 }
 
-func edgeFile(t *testing.T, content string) cnfg.Parser[Edges] {
+func edgeFile(t *testing.T, content string) cnfg.Source {
 	t.Helper()
 
-	return cnfg.File[Edges](json.Unmarshal, writeFile(t, "edges.json", content))
+	return cnfg.File(json.Unmarshal, writeFile(t, "edges.json", content))
 }
 
 func TestNilPointerStructIsFilled(t *testing.T) {
-	cfg, err := cnfg.Parse(Edges{}, flags[Edges]("-limits-max-conns", "7"))
+	cfg, err := cnfg.Parse(Edges{}, flags("-limits-max-conns", "7"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestNilPointerStructIsFilled(t *testing.T) {
 }
 
 func TestPointerTextUnmarshaler(t *testing.T) {
-	cfg, err := cnfg.Parse(Edges{}, flags[Edges]("-when", "2026-09-15T00:00:00Z"))
+	cfg, err := cnfg.Parse(Edges{}, flags("-when", "2026-09-15T00:00:00Z"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestFileValueErrors(t *testing.T) {
 }
 
 func TestSliceElementError(t *testing.T) {
-	_, err := cnfg.Parse(Edges{}, env[Edges]("NUMS=1,x"))
+	_, err := cnfg.Parse(Edges{}, env("NUMS=1,x"))
 	if !errors.Is(err, cnfg.ErrInvalidValue) {
 		t.Fatalf("got %v, want ErrInvalidValue", err)
 	}
@@ -119,7 +119,7 @@ func TestUnexportedAndUnderscoreNames(t *testing.T) {
 
 	when := time.Unix(0, 0).UTC()
 	ptr := 3
-	_, _ = cnfg.Parse(Edges{When: &when, Ptr: &ptr, Bytes: []byte("hi")}, cnfg.FlagSet[Edges](set, []string{"-h"}))
+	_, _ = cnfg.Parse(Edges{When: &when, Ptr: &ptr, Bytes: []byte("hi")}, cnfg.FlagSet(set, []string{"-h"}))
 
 	for _, want := range []string{
 		"-limits-max-conns int",
@@ -142,7 +142,7 @@ func TestFlagsFromArgs(t *testing.T) {
 	t.Cleanup(func() { os.Args = args })
 	os.Args = []string{"app", "-addr", ":4444"}
 
-	cfg, err := cnfg.Parse(Edges{}, cnfg.Flags[Edges]())
+	cfg, err := cnfg.Parse(Edges{}, cnfg.Flags())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestFlagsFromArgs(t *testing.T) {
 func TestBrokenFileIsStillAnError(t *testing.T) {
 	broken := writeFile(t, "broken.json", "{")
 
-	if _, err := cnfg.Parse(Edges{}, cnfg.File[Edges](json.Unmarshal, broken)); !errors.Is(err, cnfg.ErrDecodeFile) {
+	if _, err := cnfg.Parse(Edges{}, cnfg.File(json.Unmarshal, broken)); !errors.Is(err, cnfg.ErrDecodeFile) {
 		t.Errorf("got %v, want ErrDecodeFile", err)
 	}
 }
@@ -161,7 +161,7 @@ func TestFileFromFlagNotStruct(t *testing.T) {
 	set := flag.NewFlagSet("test", flag.ContinueOnError)
 	set.SetOutput(io.Discard)
 
-	_, err := cnfg.Parse(42, cnfg.FileFromFlag[int](json.Unmarshal, set, "config", nil))
+	_, err := cnfg.Parse(42, cnfg.FileFromFlag(json.Unmarshal, set, "config", nil))
 	if !errors.Is(err, cnfg.ErrNotStruct) {
 		t.Errorf("got %v, want ErrNotStruct", err)
 	}

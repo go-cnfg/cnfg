@@ -5,29 +5,25 @@ import (
 	"reflect"
 )
 
-// Require fails when a field tagged `cnfg:",require"` still has its zero value, so put it
-// after the sources that are supposed to fill it:
+// Require fails with [ErrRequired] when a field tagged `cnfg:",require"` still holds its
+// zero value, so put it last, after the sources meant to fill it:
 //
 //	type Config struct {
 //		Addr string `cnfg:",require"`
 //	}
 //
-//	cfg, err := cnfg.Parse(Config{}, cnfg.Env[Config]("APP"), cnfg.Require[Config]())
+//	cfg, err := cnfg.Parse(Config{}, cnfg.Env("APP"), cnfg.Require())
 //
-// The error wraps ErrRequired and names the field the way the flag does, server-addr for
-// field Addr of struct field Server. The zero value is what counts as not set, so a bool
-// or a number that may legitimately be zero is not something to require.
-func Require[T any]() Parser[T] {
-	return func(cfg T) (T, error) {
-		v := reflect.ValueOf(&cfg).Elem()
-		if v.Kind() != reflect.Struct {
-			return cfg, fmt.Errorf("%w, got %T", ErrNotStruct, cfg)
-		}
+// The error names the field the way its flag is named, server-addr for field Addr of
+// struct field Server. Zero is what counts as unset, so a bool or a number that may
+// legitimately be zero is not something to require.
+func Require() Source {
+	return sourceFunc(func(v reflect.Value) error {
 		if name := missing(v, ""); name != "" {
-			return cfg, fmt.Errorf("%w: %s", ErrRequired, name)
+			return fmt.Errorf("%w: %s", ErrRequired, name)
 		}
-		return cfg, nil
-	}
+		return nil
+	})
 }
 
 // missing returns the name of the first required field that is still zero, or "".

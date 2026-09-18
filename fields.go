@@ -43,15 +43,6 @@ func parseTag(sf reflect.StructField) tag {
 	return t
 }
 
-// configFields collects the leaf fields of the config struct behind cfg.
-func configFields[T any](cfg *T) ([]field, error) {
-	v := reflect.ValueOf(cfg).Elem()
-	if v.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("%w, got %T", ErrNotStruct, *cfg)
-	}
-	return fields(v)
-}
-
 // fields collects every leaf value of the struct. Names of nested fields are joined with a dash,
 // so field Addr of struct field Server is named server-addr.
 // Values that can't be expressed as a single string, like maps and slices of structs,

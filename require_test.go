@@ -41,7 +41,7 @@ func filled() Required {
 }
 
 func TestRequireAccepts(t *testing.T) {
-	if _, err := cnfg.Parse(filled(), cnfg.Require[Required]()); err != nil {
+	if _, err := cnfg.Parse(filled(), cnfg.Require()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -66,7 +66,7 @@ func TestRequireRejects(t *testing.T) {
 			cfg := filled()
 			tc.zero(&cfg)
 
-			_, err := cnfg.Parse(cfg, cnfg.Require[Required]())
+			_, err := cnfg.Parse(cfg, cnfg.Require())
 			if !errors.Is(err, cnfg.ErrRequired) {
 				t.Fatalf("got %v, want ErrRequired", err)
 			}
@@ -78,7 +78,7 @@ func TestRequireRejects(t *testing.T) {
 }
 
 func TestRequireNamesTheFirst(t *testing.T) {
-	_, err := cnfg.Parse(Required{}, cnfg.Require[Required]())
+	_, err := cnfg.Parse(Required{}, cnfg.Require())
 	if !strings.HasSuffix(err.Error(), ": name") {
 		t.Errorf("fields are checked in declaration order, embedded first: %v", err)
 	}
@@ -89,8 +89,8 @@ func TestRequireIsFilledBySources(t *testing.T) {
 	cfg.Addr = ""
 
 	got, err := cnfg.Parse(cfg,
-		cnfg.EnvFrom[Required]("APP", []string{"APP_ADDR=:3"}),
-		cnfg.Require[Required](),
+		cnfg.EnvFrom("APP", []string{"APP_ADDR=:3"}),
+		cnfg.Require(),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -102,14 +102,14 @@ func TestRequireLeavesNilPointersAlone(t *testing.T) {
 	cfg := filled()
 	cfg.Backup = nil
 
-	got, _ := cnfg.Parse(cfg, cnfg.Require[Required]())
+	got, _ := cnfg.Parse(cfg, cnfg.Require())
 	if got.Backup != nil {
 		t.Error("checking should not allocate the nested struct")
 	}
 }
 
 func TestRequireNotStruct(t *testing.T) {
-	_, err := cnfg.Parse(42, cnfg.Require[int]())
+	_, err := cnfg.Parse(42, cnfg.Require())
 	if !errors.Is(err, cnfg.ErrNotStruct) {
 		t.Errorf("got %v, want ErrNotStruct", err)
 	}

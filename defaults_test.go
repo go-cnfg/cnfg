@@ -59,16 +59,16 @@ func TestDefaultsAreLeftAlone(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		parser cnfg.Parser[Shared]
+		source cnfg.Source
 	}{
-		{name: "file", parser: cnfg.File[Shared](json.Unmarshal, file)},
-		{name: "env", parser: env[Shared](
+		{name: "file", source: cnfg.File(json.Unmarshal, file)},
+		{name: "env", source: env(
 			"NAME=other", "PORT=90", "WHEN=2026-01-01T00:00:00Z", "SERVER_TLS_CERT=other.pem", "HOSTS=a",
 		)},
-		{name: "flags", parser: flags[Shared](
+		{name: "flags", source: flags(
 			"-name", "other", "-port", "90", "-when", "2026-01-01T00:00:00Z", "-server-tls-cert", "other.pem", "-hosts", "a",
 		)},
-		{name: "own parser", parser: func(cfg Shared) (Shared, error) {
+		{name: "own source", source: cnfg.Func(func(cfg Shared) (Shared, error) {
 			labels, ok := cfg.Any.(map[string]string)
 			if !ok {
 				return cfg, errors.New("any should hold the map from the defaults")
@@ -81,13 +81,13 @@ func TestDefaultsAreLeftAlone(t *testing.T) {
 			cfg.Hosts[0] = "a"
 			labels["k"] = "changed"
 			return cfg, nil
-		}},
+		})},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			defaults := shared()
-			cfg, err := cnfg.Parse(defaults, tc.parser)
+			cfg, err := cnfg.Parse(defaults, tc.source)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -108,11 +108,11 @@ func TestSameDefaultsParsedTwice(t *testing.T) {
 	second := writeFile(t, "second.json", `{"tags": {"team": "b"}}`)
 	defaults := shared()
 
-	one, err := cnfg.Parse(defaults, cnfg.File[Shared](json.Unmarshal, first))
+	one, err := cnfg.Parse(defaults, cnfg.File(json.Unmarshal, first))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	two, err := cnfg.Parse(defaults, cnfg.File[Shared](json.Unmarshal, second))
+	two, err := cnfg.Parse(defaults, cnfg.File(json.Unmarshal, second))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

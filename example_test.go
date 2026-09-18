@@ -26,9 +26,9 @@ func ExampleParse() {
 	}
 
 	cfg, err := cnfg.Parse(defaults,
-		cnfg.File[AppConfig](json.Unmarshal, "app.json"),
-		cnfg.EnvFrom[AppConfig]("APP", []string{"APP_TIMEOUT=1m"}),
-		flags[AppConfig]("-debug"),
+		cnfg.File(json.Unmarshal, "app.json"),
+		cnfg.EnvFrom("APP", []string{"APP_TIMEOUT=1m"}),
+		flags("-debug"),
 	)
 	if err != nil {
 		fmt.Println(err)
@@ -39,7 +39,7 @@ func ExampleParse() {
 	// Output: {Addr::8080 Timeout:1m0s Debug:true}
 }
 
-func ExampleParser() {
+func ExampleFunc() {
 	withDefaultPort := func(cfg AppConfig) (AppConfig, error) {
 		if cfg.Addr == "" {
 			return cfg, fmt.Errorf("addr is required")
@@ -50,7 +50,7 @@ func ExampleParser() {
 		return cfg, nil
 	}
 
-	cfg, err := cnfg.Parse(AppConfig{Addr: ":8080"}, withDefaultPort)
+	cfg, err := cnfg.Parse(AppConfig{Addr: ":8080"}, cnfg.Func(withDefaultPort))
 	fmt.Println(cfg.Addr, err)
 	// Output: localhost:8080 <nil>
 }
@@ -61,8 +61,8 @@ func ExampleFlagSet() {
 	args := []string{"-h"}
 
 	_, _ = cnfg.Parse(AppConfig{Addr: ":8080", Timeout: 5 * time.Second},
-		cnfg.FileFromFlag[AppConfig](json.Unmarshal, set, "config", args),
-		cnfg.FlagSet[AppConfig](set, args),
+		cnfg.FileFromFlag(json.Unmarshal, set, "config", args),
+		cnfg.FlagSet(set, args),
 	)
 
 	// Output:
@@ -82,7 +82,7 @@ type ServerConfig struct {
 	Workers int    `usage:"number of workers"`
 }
 
-func ExampleParser_validation() {
+func ExampleFunc_validation() {
 	validate := func(cfg ServerConfig) (ServerConfig, error) {
 		if cfg.Workers < 1 {
 			return cfg, fmt.Errorf("workers must be at least 1, got %d", cfg.Workers)
@@ -92,14 +92,14 @@ func ExampleParser_validation() {
 	defaults := ServerConfig{Addr: ":8080", Workers: 4}
 
 	_, err := cnfg.Parse(defaults,
-		cnfg.EnvFrom[ServerConfig]("APP", []string{"APP_WORKERS=0"}),
-		validate,
+		cnfg.EnvFrom("APP", []string{"APP_WORKERS=0"}),
+		cnfg.Func(validate),
 	)
 	fmt.Println(err)
 
 	cfg, err := cnfg.Parse(defaults,
-		cnfg.EnvFrom[ServerConfig]("APP", []string{"APP_WORKERS=8"}),
-		validate,
+		cnfg.EnvFrom("APP", []string{"APP_WORKERS=8"}),
+		cnfg.Func(validate),
 	)
 	fmt.Println(cfg.Workers, err)
 
@@ -120,7 +120,7 @@ func ExampleGlob() {
 	}
 
 	cfg, err := cnfg.Parse(AppConfig{Addr: ":8080"},
-		cnfg.Glob[AppConfig](json.Unmarshal, filepath.Join(dir, "*.conf")),
+		cnfg.Glob(json.Unmarshal, filepath.Join(dir, "*.conf")),
 	)
 	fmt.Printf("%+v %v\n", cfg, err)
 	// Output: {Addr::9999 Timeout:1m0s Debug:false} <nil>
@@ -135,10 +135,10 @@ func ExampleFileStrict() {
 	_ = os.WriteFile(file, []byte(`{"addr": ":8080", "adrr": ":9090"}`), 0o600)
 	defer func() { _ = os.Remove(file) }()
 
-	_, err := cnfg.Parse(Config{}, cnfg.FileStrict[Config](json.Unmarshal, file))
+	_, err := cnfg.Parse(Config{}, cnfg.FileStrict(json.Unmarshal, file))
 	fmt.Println(strings.TrimPrefix(err.Error(), file+": "))
 
-	cfg, err := cnfg.Parse(Config{}, cnfg.File[Config](json.Unmarshal, file))
+	cfg, err := cnfg.Parse(Config{}, cnfg.File(json.Unmarshal, file))
 	fmt.Println(cfg.Addr, err)
 
 	// Output:
@@ -153,14 +153,14 @@ func ExampleRequire() {
 	}
 
 	_, err := cnfg.Parse(Config{Workers: 4},
-		cnfg.EnvFrom[Config]("APP", []string{"APP_WORKERS=8"}),
-		cnfg.Require[Config](),
+		cnfg.EnvFrom("APP", []string{"APP_WORKERS=8"}),
+		cnfg.Require(),
 	)
 	fmt.Println(err)
 
 	cfg, err := cnfg.Parse(Config{Workers: 4},
-		cnfg.EnvFrom[Config]("APP", []string{"APP_ADDR=:8080"}),
-		cnfg.Require[Config](),
+		cnfg.EnvFrom("APP", []string{"APP_ADDR=:8080"}),
+		cnfg.Require(),
 	)
 	fmt.Println(cfg.Addr, err)
 
@@ -180,10 +180,10 @@ func ExampleFile() {
 	file, cleanup := tempFile("cnfg-file.json", `{"addr": ":9090", "timeout": "30s"}`)
 	defer cleanup()
 
-	cfg, err := cnfg.Parse(AppConfig{Addr: ":8080"}, cnfg.File[AppConfig](json.Unmarshal, file))
+	cfg, err := cnfg.Parse(AppConfig{Addr: ":8080"}, cnfg.File(json.Unmarshal, file))
 	fmt.Printf("%+v %v\n", cfg, err)
 
-	cfg, err = cnfg.Parse(AppConfig{Addr: ":8080"}, cnfg.File[AppConfig](json.Unmarshal, "not-there.json"))
+	cfg, err = cnfg.Parse(AppConfig{Addr: ":8080"}, cnfg.File(json.Unmarshal, "not-there.json"))
 	fmt.Printf("%+v %v\n", cfg, err)
 
 	// Output:
@@ -199,8 +199,8 @@ func ExampleFileFromFlag() {
 	args := []string{"-config", file, "-debug"}
 
 	cfg, err := cnfg.Parse(AppConfig{Addr: ":8080"},
-		cnfg.FileFromFlag[AppConfig](json.Unmarshal, set, "config", args),
-		cnfg.FlagSet[AppConfig](set, args),
+		cnfg.FileFromFlag(json.Unmarshal, set, "config", args),
+		cnfg.FlagSet(set, args),
 	)
 	fmt.Printf("%+v %v\n", cfg, err)
 	// Output: {Addr::9090 Timeout:0s Debug:true} <nil>
@@ -214,8 +214,8 @@ func ExampleFileFromEnv() {
 	defer func() { _ = os.Unsetenv("APP_CONFIG") }()
 
 	cfg, err := cnfg.Parse(AppConfig{Addr: ":8080"},
-		cnfg.FileFromEnv[AppConfig](json.Unmarshal, "APP_CONFIG"),
-		cnfg.EnvFrom[AppConfig]("APP", []string{"APP_DEBUG=true"}),
+		cnfg.FileFromEnv(json.Unmarshal, "APP_CONFIG"),
+		cnfg.EnvFrom("APP", []string{"APP_DEBUG=true"}),
 	)
 	fmt.Printf("%+v %v\n", cfg, err)
 	// Output: {Addr::9090 Timeout:0s Debug:true} <nil>
@@ -236,7 +236,7 @@ func ExampleEnv() {
 		_ = os.Unsetenv("APP_SERVER_TLS_CERT")
 	}()
 
-	cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.Env[Config]("APP"))
+	cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.Env("APP"))
 	fmt.Println(cfg.Addr, cfg.Server.TLSCert, err)
 	// Output: :9090 cert.pem <nil>
 }
@@ -248,7 +248,7 @@ func ExampleEnvFrom() {
 	}
 
 	cfg, err := cnfg.Parse(Config{},
-		cnfg.EnvFrom[Config]("APP", []string{"APP_HOSTS=a,b,c", "APP_TIMEOUT=1m"}),
+		cnfg.EnvFrom("APP", []string{"APP_HOSTS=a,b,c", "APP_TIMEOUT=1m"}),
 	)
 	fmt.Println(cfg.Hosts, cfg.Timeout, err)
 	// Output: [a b c] 1m0s <nil>
@@ -262,10 +262,10 @@ func ExampleEnvStrict() {
 	_ = os.Setenv("APP_ADRR", ":9090")
 	defer func() { _ = os.Unsetenv("APP_ADRR") }()
 
-	_, err := cnfg.Parse(Config{}, cnfg.EnvStrict[Config]("APP"))
+	_, err := cnfg.Parse(Config{}, cnfg.EnvStrict("APP"))
 	fmt.Println(err)
 
-	_, err = cnfg.Parse(Config{}, cnfg.EnvStrict[Config](""))
+	_, err = cnfg.Parse(Config{}, cnfg.EnvStrict(""))
 	fmt.Println(err)
 
 	// Output:
@@ -280,10 +280,10 @@ func ExampleEnvFromStrict() {
 
 	environ := []string{"APP_ADDR=:8080", "APP_ADRR=:9090", "PATH=/bin"}
 
-	_, err := cnfg.Parse(Config{}, cnfg.EnvFromStrict[Config]("APP", environ))
+	_, err := cnfg.Parse(Config{}, cnfg.EnvFromStrict("APP", environ))
 	fmt.Println(err)
 
-	cfg, err := cnfg.Parse(Config{}, cnfg.EnvFrom[Config]("APP", environ))
+	cfg, err := cnfg.Parse(Config{}, cnfg.EnvFrom("APP", environ))
 	fmt.Println(cfg.Addr, err)
 
 	// Output:
@@ -296,7 +296,7 @@ func ExampleFlags() {
 	os.Args = []string{"app", "-addr", ":9090", "-timeout", "1m"}
 	defer func() { os.Args = args }()
 
-	cfg, err := cnfg.Parse(AppConfig{Addr: ":8080"}, cnfg.Flags[AppConfig]())
+	cfg, err := cnfg.Parse(AppConfig{Addr: ":8080"}, cnfg.Flags())
 	fmt.Printf("%+v %v\n", cfg, err)
 	// Output: {Addr::9090 Timeout:1m0s Debug:false} <nil>
 }
@@ -313,7 +313,7 @@ func ExampleGlobStrict() {
 	}
 
 	_, err := cnfg.Parse(AppConfig{},
-		cnfg.GlobStrict[AppConfig](json.Unmarshal, filepath.Join(dir, "*.conf")),
+		cnfg.GlobStrict(json.Unmarshal, filepath.Join(dir, "*.conf")),
 	)
 	fmt.Println(strings.TrimPrefix(err.Error(), dir+string(filepath.Separator)))
 	// Output: 20-typo.conf: no field for adrr
@@ -327,8 +327,8 @@ func ExampleFileFromFlagStrict() {
 	args := []string{"-config", file}
 
 	_, err := cnfg.Parse(AppConfig{},
-		cnfg.FileFromFlagStrict[AppConfig](json.Unmarshal, set, "config", args),
-		cnfg.FlagSet[AppConfig](set, args),
+		cnfg.FileFromFlagStrict(json.Unmarshal, set, "config", args),
+		cnfg.FlagSet(set, args),
 	)
 	fmt.Println(strings.TrimPrefix(err.Error(), file+": "))
 	// Output: no field for adrr
@@ -341,7 +341,7 @@ func ExampleFileFromEnvStrict() {
 	_ = os.Setenv("APP_CONFIG", file)
 	defer func() { _ = os.Unsetenv("APP_CONFIG") }()
 
-	_, err := cnfg.Parse(AppConfig{}, cnfg.FileFromEnvStrict[AppConfig](json.Unmarshal, "APP_CONFIG"))
+	_, err := cnfg.Parse(AppConfig{}, cnfg.FileFromEnvStrict(json.Unmarshal, "APP_CONFIG"))
 	fmt.Println(strings.TrimPrefix(err.Error(), file+": "))
 	// Output: no field for adrr
 }
@@ -361,7 +361,7 @@ func ExampleDecoder() {
 	file, cleanup := tempFile("cnfg.conf", "addr=:9090\ntimeout=45s\n")
 	defer cleanup()
 
-	cfg, err := cnfg.Parse(AppConfig{}, cnfg.File[AppConfig](keyValue, file))
+	cfg, err := cnfg.Parse(AppConfig{}, cnfg.File(keyValue, file))
 	fmt.Printf("%+v %v\n", cfg, err)
 	// Output: {Addr::9090 Timeout:45s Debug:false} <nil>
 }
@@ -377,8 +377,8 @@ func Example_names() {
 	}
 
 	cfg, err := cnfg.Parse(Config{Secret: "kept"},
-		cnfg.EnvFrom[Config]("APP", []string{"APP_LISTEN_ADDR=:9090", "APP_SERVER_TLS_CERT=cert.pem", "APP_SECRET=leaked"}),
-		flags[Config]("-level", "debug"),
+		cnfg.EnvFrom("APP", []string{"APP_LISTEN_ADDR=:9090", "APP_SERVER_TLS_CERT=cert.pem", "APP_SECRET=leaked"}),
+		flags("-level", "debug"),
 	)
 	fmt.Println(cfg.ListenAddr, cfg.Server.TLSCert, cfg.LogLevel, cfg.Secret, err)
 	// Output: :9090 cert.pem debug kept <nil>
@@ -390,11 +390,11 @@ func Example_invalidValue() {
 		Timeout time.Duration
 	}
 
-	_, err := cnfg.Parse(Config{}, cnfg.EnvFrom[Config]("APP", []string{"APP_WORKERS=many"}))
+	_, err := cnfg.Parse(Config{}, cnfg.EnvFrom("APP", []string{"APP_WORKERS=many"}))
 	fmt.Println(err)
 	fmt.Println(errors.Is(err, cnfg.ErrInvalidValue))
 
-	_, err = cnfg.Parse(Config{}, flags[Config]("-timeout", "soon"))
+	_, err = cnfg.Parse(Config{}, flags("-timeout", "soon"))
 	fmt.Println(err)
 	fmt.Println(errors.Is(err, cnfg.ErrParseFlags))
 

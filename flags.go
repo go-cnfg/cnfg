@@ -6,22 +6,27 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 )
 
-// Flags parses os.Args[1:] into the config.
-func Flags[T any]() Parser[T] {
-	return FlagSet[T](flag.NewFlagSet(filepath.Base(os.Args[0]), flag.ContinueOnError), os.Args[1:])
+// Flags parses os.Args[1:] into the config with a flag set of its own, named after
+// the program and set to [flag.ContinueOnError]. Use [FlagSet] to parse with a set
+// of your own.
+func Flags() Source {
+	return FlagSet(flag.NewFlagSet(filepath.Base(os.Args[0]), flag.ContinueOnError), os.Args[1:])
 }
 
-// FlagSet parses args with the given flag set. Flags that were registered before are left alone,
-// and the positional args are available with set.Args() once Parse is done.
-// The error wraps ErrParseFlags, and flag.ErrHelp when the user asked for the usage output.
-func FlagSet[T any](set *flag.FlagSet, args []string) Parser[T] {
-	return func(cfg T) (T, error) {
-		ff, err := configFields(&cfg)
+// FlagSet parses args with set, registering one flag per config field. A flag the args
+// do not carry leaves its field alone, flags already registered in set are left to
+// their own values, and set.Args() holds the positional args once [Parse] is done.
+// The error wraps [ErrParseFlags], or [flag.ErrHelp] when the user asked for the usage
+// output.
+func FlagSet(set *flag.FlagSet, args []string) Source {
+	return sourceFunc(func(v reflect.Value) error {
+		ff, err := fields(v)
 		if err != nil {
-			return cfg, err
+			return err
 		}
 
 		set.Usage = usageFunc(set, ff)
@@ -30,10 +35,10 @@ func FlagSet[T any](set *flag.FlagSet, args []string) Parser[T] {
 		}
 
 		if err := set.Parse(args); err != nil {
-			return cfg, fmt.Errorf("%w: %w", ErrParseFlags, err)
+			return fmt.Errorf("%w: %w", ErrParseFlags, err)
 		}
-		return cfg, nil
-	}
+		return nil
+	})
 }
 
 // usageFunc lists the flags with their type and default value. Both are read before the

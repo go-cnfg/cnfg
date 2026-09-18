@@ -28,9 +28,9 @@ func main() {
         Addr:    ":8080",
         Timeout: 5 * time.Second,
     },
-        cnfg.File[Config](json.Unmarshal, "/etc/app/config.json"),
-        cnfg.Env[Config]("APP"),
-        cnfg.Flags[Config](),
+        cnfg.File(json.Unmarshal, "/etc/app/config.json"),
+        cnfg.Env("APP"),
+        cnfg.Flags(),
     )
     if err != nil {
         log.Fatal(err)
@@ -43,7 +43,7 @@ func main() {
 ## Table of Contents
 
 - [Install](#install)
-- [Parsers](#parsers)
+- [Sources](#sources)
 - [Names](#names)
 - [Tags](#tags)
 - [Config files](#config-files)
@@ -64,18 +64,19 @@ file format is a decoder you pass in, so the format library stays a dependency o
 program and cnfg never drags one in.
 
 Struct tag validation lives in [github.com/go-cnfg/validator](https://github.com/go-cnfg/validator),
-a module of its own that wraps go-playground/validator as a parser.
+a module of its own that wraps go-playground/validator as a source.
 
-## Parsers
+## Sources
 
-A parser is anything that takes a config and gives back a config:
+A source reads one place your config can come from. `Env`, `Flags` and the file sources all
+return a `cnfg.Source`, and the config type is inferred from the defaults you hand to `Parse`,
+so no source needs a type argument:
 
 ```go
-type Parser[T any] func(T) (T, error)
+cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.Env("APP"), cnfg.Flags())
 ```
 
-`Env`, `Flags` and the file parsers are parsers that happen to read a source, and your own
-validation or post processing fits in the same chain:
+Your own validation or post processing fits in the same chain, wrapped in `cnfg.Func`:
 
 ```go
 func normalize(cfg Config) (Config, error) {
@@ -86,29 +87,30 @@ func normalize(cfg Config) (Config, error) {
     return cfg, nil
 }
 
-cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.Env[Config]("APP"), cnfg.Flags[Config](), normalize)
+cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.Env("APP"), cnfg.Flags(), cnfg.Func(normalize))
 ```
 
-Fields that no parser touched keep the value they had in defaults, so there is no need to
+Fields that no source touched keep the value they had in defaults, so there is no need to
 repeat the defaults in a file or to guard against empty values. `Parse` returns the zero value
-of your config together with the error when a parser fails.
+of your config together with the error when a source fails.
 
-| Parser | Reads |
+| Source | Reads |
 | --- | --- |
-| `Env[T](prefix)` | Environment variables, from `os.Environ()`. |
-| `EnvFrom[T](prefix, environ)` | Environment variables, from the given `KEY=VALUE` list. |
-| `Flags[T]()` | Command line flags, from `os.Args[1:]`. |
-| `FlagSet[T](set, args)` | Command line flags, from your own flag set and args. |
-| `File[T](dec, path)` | Config file at path, decoded with dec. |
-| `Glob[T](dec, pattern)` | Every file matching the glob, in lexical order. |
-| `FileFromFlag[T](dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
-| `FileFromEnv[T](dec, name)` | Config file named by an env var, `APP_CONFIG=app.json`. |
+| `Env(prefix)` | Environment variables, from `os.Environ()`. |
+| `EnvFrom(prefix, environ)` | Environment variables, from the given `KEY=VALUE` list. |
+| `Flags()` | Command line flags, from `os.Args[1:]`. |
+| `FlagSet(set, args)` | Command line flags, from your own flag set and args. |
+| `File(dec, path)` | Config file at path, decoded with dec. |
+| `Glob(dec, pattern)` | Every file matching the glob, in lexical order. |
+| `FileFromFlag(dec, set, name, args)` | Config file the user gave with a flag, `-config app.json`. |
+| `FileFromEnv(dec, name)` | Config file named by an env var, `APP_CONFIG=app.json`. |
+| `Func(fn)` | Whatever your own `func(T) (T, error)` does. |
 
-Each of `Env`, `EnvFrom` and the file parsers has a `Strict` twin, `EnvStrict`, `FileStrict` and
+Each of `Env`, `EnvFrom` and the file sources has a `Strict` twin, `EnvStrict`, `FileStrict` and
 so on, that fails on a key your config has no field for, see [extra keys](#extra-keys).
 
 Nothing is magic about the order. Put the sources in the order you want them to win, and put
-your own parsers among them wherever they belong.
+your own among them wherever they belong.
 
 ## Names
 
@@ -146,7 +148,7 @@ format is simply the library you already import:
 ```go
 import "go.yaml.in/yaml/v3"
 
-cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.File[Config](yaml.Unmarshal, "/etc/app/config.yaml"))
+cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.File(yaml.Unmarshal, "/etc/app/config.yaml"))
 ```
 
 A config file that is not there is a no op, since that is the one source allowed to be
@@ -157,7 +159,7 @@ Anything with that signature works, so a format cnfg has never heard of needs no
 cnfg:
 
 ```go
-cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.File[Config](hcl.Unmarshal, "/etc/app/config.hcl"))
+cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.File(hcl.Unmarshal, "/etc/app/config.hcl"))
 ```
 
 Values from files go through the same parsing as env vars and flags, so a duration is written
@@ -172,9 +174,9 @@ set := flag.NewFlagSet("app", flag.ContinueOnError)
 args := os.Args[1:]
 
 cfg, err := cnfg.Parse(Config{Addr: ":8080"},
-    cnfg.FileFromFlag[Config](json.Unmarshal, set, "config", args),
-    cnfg.Env[Config]("APP"),
-    cnfg.FlagSet[Config](set, args),
+    cnfg.FileFromFlag(json.Unmarshal, set, "config", args),
+    cnfg.Env("APP"),
+    cnfg.FlagSet(set, args),
 )
 ```
 
@@ -183,9 +185,9 @@ empty or names a file that is not there:
 
 ```go
 cfg, err := cnfg.Parse(Config{Addr: ":8080"},
-    cnfg.FileFromEnv[Config](json.Unmarshal, "APP_CONFIG"),
-    cnfg.Env[Config]("APP"),
-    cnfg.Flags[Config](),
+    cnfg.FileFromEnv(json.Unmarshal, "APP_CONFIG"),
+    cnfg.Env("APP"),
+    cnfg.Flags(),
 )
 ```
 
@@ -202,10 +204,10 @@ is a no op like a missing file, so the usual base file plus drop-ins looks like 
 import "go.yaml.in/yaml/v3"
 
 cfg, err := cnfg.Parse(Config{Addr: ":8080"},
-    cnfg.File[Config](yaml.Unmarshal, "/etc/app/config.yaml"),
-    cnfg.Glob[Config](yaml.Unmarshal, "/etc/app/config.d/*.conf"),
-    cnfg.Env[Config]("APP"),
-    cnfg.Flags[Config](),
+    cnfg.File(yaml.Unmarshal, "/etc/app/config.yaml"),
+    cnfg.Glob(yaml.Unmarshal, "/etc/app/config.d/*.conf"),
+    cnfg.Env("APP"),
+    cnfg.Flags(),
 )
 ```
 
@@ -227,9 +229,9 @@ several programs read and unfriendly to a typo. Every source that can have extra
 
 ```go
 cfg, err := cnfg.Parse(Config{Addr: ":8080"},
-    cnfg.FileStrict[Config](yaml.Unmarshal, "/etc/app/config.yaml"),
-    cnfg.EnvStrict[Config]("APP"),
-    cnfg.Flags[Config](),
+    cnfg.FileStrict(yaml.Unmarshal, "/etc/app/config.yaml"),
+    cnfg.EnvStrict("APP"),
+    cnfg.Flags(),
 )
 ```
 
@@ -281,7 +283,7 @@ type Config struct {
     Workers int
 }
 
-cfg, err := cnfg.Parse(Config{Workers: 4}, cnfg.Env[Config]("APP"), cnfg.Flags[Config](), cnfg.Require[Config]())
+cfg, err := cnfg.Parse(Config{Workers: 4}, cnfg.Env("APP"), cnfg.Flags(), cnfg.Require())
 ```
 
 ```
@@ -292,7 +294,7 @@ The error wraps `ErrRequired` and names the field the way the flag does, `server
 field `Addr` of struct field `Server`. The zero value is what counts as not set, so a bool or a
 number that may well be zero is not something to require.
 
-Anything more than that is deliberately not built in. A validator is a parser like any other,
+Anything more than that is deliberately not built in. A validator is a source like any other,
 so a plain function or whatever struct validator you already use fits at the end of the chain:
 
 ```go
@@ -303,11 +305,11 @@ func validate(cfg Config) (Config, error) {
     return cfg, nil
 }
 
-cfg, err := cnfg.Parse(Config{Workers: 4}, cnfg.Env[Config]("APP"), cnfg.Flags[Config](), validate)
+cfg, err := cnfg.Parse(Config{Workers: 4}, cnfg.Env("APP"), cnfg.Flags(), cnfg.Func(validate))
 ```
 
 [github.com/go-cnfg/validator](https://github.com/go-cnfg/validator) is one such wrapper, it
-runs [go-playground/validator](https://github.com/go-playground/validator) as a parser so the
+runs [go-playground/validator](https://github.com/go-playground/validator) as a source so the
 rules live in struct tags:
 
 ```go
@@ -326,9 +328,9 @@ cfg, err := cnfg.Parse(Config{
     Level:   "info",
     Timeout: 30 * time.Second,
 },
-    cnfg.Env[Config]("APP"),
-    cnfg.Flags[Config](),
-    validator.Validate[Config](),
+    cnfg.Env("APP"),
+    cnfg.Flags(),
+    validator.Validate(),
 )
 ```
 
@@ -355,7 +357,7 @@ Usage of app:
 is the normal way to exit with status 0:
 
 ```go
-cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.Flags[Config]())
+cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.Flags())
 if errors.Is(err, flag.ErrHelp) {
     return
 }
@@ -367,7 +369,7 @@ of your own or read the positional args that were left over:
 ```go
 set := flag.NewFlagSet("app", flag.ContinueOnError)
 
-cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.FlagSet[Config](set, os.Args[1:]))
+cfg, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.FlagSet(set, os.Args[1:]))
 if err != nil {
     log.Fatal(err)
 }
@@ -375,9 +377,9 @@ if err != nil {
 log.Println(set.Args())
 ```
 
-Flag parsing is a parser like any other, so a library with a different flavor of flags takes the
+Flag parsing is a source like any other, so a library with a different flavor of flags takes the
 same place in the chain. With [go-flags](https://github.com/jessevdk/go-flags) the flags come
-from its own struct tags, and a plain function wraps the parse:
+from its own struct tags, and `cnfg.Func` wraps the parse:
 
 ```go
 import "github.com/jessevdk/go-flags"
@@ -397,9 +399,9 @@ func ParseFlags(cfg Config) (Config, error) {
 }
 
 cfg, err := cnfg.Parse(Config{Addr: ":8080"},
-    cnfg.File[Config](json.Unmarshal, "/etc/app/config.json"),
-    cnfg.Env[Config]("APP"),
-    ParseFlags,
+    cnfg.File(json.Unmarshal, "/etc/app/config.json"),
+    cnfg.Env("APP"),
+    cnfg.Func(ParseFlags),
 )
 if errors.Is(err, flag.ErrHelp) {
     return
@@ -408,5 +410,5 @@ if errors.Is(err, flag.ErrHelp) {
 
 go-flags leaves a field alone when its flag was not given, so the values from the file and the
 env vars come through the way they do with `Flags`. It has its own way of saying `--help` was
-asked for, and turning that into `flag.ErrHelp` inside the parser keeps the rest of the program
+asked for, and turning that into `flag.ErrHelp` inside the function keeps the rest of the program
 the same as with `Flags`.
