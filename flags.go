@@ -23,7 +23,9 @@ func Flags() Source {
 // set.Args() holds the positional args once [Parse] is done. The error wraps
 // [ErrParseFlags], or [flag.ErrHelp] when the user asked for the usage output. Make set
 // with [flag.ContinueOnError] to get those errors back, since with [flag.ExitOnError]
-// the flag package exits the process from inside Parse.
+// the flag package exits the process from inside Parse. FlagSet leaves that choice
+// alone, while [MustParse] switches the set to [flag.ContinueOnError] because it picks
+// the status code itself.
 func FlagSet(set *flag.FlagSet, args []string) Source {
 	return &flagSource{set: set, args: args}
 }
