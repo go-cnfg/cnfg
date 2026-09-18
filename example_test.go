@@ -195,12 +195,13 @@ func ExampleFileFromFlag() {
 	file, cleanup := tempFile("cnfg-flag.json", `{"addr": ":9090"}`)
 	defer cleanup()
 
-	set := flag.NewFlagSet("app", flag.ContinueOnError)
-	args := []string{"-config", file, "-debug"}
+	args := os.Args
+	os.Args = []string{"app", "-config", file, "-debug"}
+	defer func() { os.Args = args }()
 
 	cfg, err := cnfg.Parse(AppConfig{Addr: ":8080"},
-		cnfg.FileFromFlag(json.Unmarshal, "config", args),
-		cnfg.FlagSet(set, args),
+		cnfg.FileFromFlag(json.Unmarshal, "config", os.Args[1:]),
+		cnfg.Flags(),
 	)
 	fmt.Printf("%+v %v\n", cfg, err)
 	// Output: {Addr::9090 Timeout:0s Debug:true} <nil>
@@ -323,12 +324,13 @@ func ExampleFileFromFlagStrict() {
 	file, cleanup := tempFile("cnfg-flag-strict.json", `{"addr": ":9090", "adrr": ":9091"}`)
 	defer cleanup()
 
-	set := flag.NewFlagSet("app", flag.ContinueOnError)
-	args := []string{"-config", file}
+	args := os.Args
+	os.Args = []string{"app", "-config", file}
+	defer func() { os.Args = args }()
 
 	_, err := cnfg.Parse(AppConfig{},
-		cnfg.FileFromFlagStrict(json.Unmarshal, "config", args),
-		cnfg.FlagSet(set, args),
+		cnfg.FileFromFlagStrict(json.Unmarshal, "config", os.Args[1:]),
+		cnfg.Flags(),
 	)
 	fmt.Println(strings.TrimPrefix(err.Error(), file+": "))
 	// Output: no field for adrr
