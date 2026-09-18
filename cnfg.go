@@ -109,9 +109,14 @@ var exit = os.Exit
 // The one error that is not a failure is the user asking for the usage output with -h.
 // The flag set has written it by then, so MustParse exits with status 0 and says nothing
 // of its own. A flag it could not parse is written by the flag set as well, so that one
-// exits with status 1 and is likewise left alone. Use [Parse] where the caller has
-// somewhere better to put the error.
+// exits with status 1 and is likewise left alone.
+//
+// The status is MustParse's to pick, so a [FlagSet] it is given is put into
+// [flag.ContinueOnError] first, whatever it was made with. Use [Parse] where the caller
+// has somewhere better to put the error.
 func MustParse[T any](defaults T, sources ...Source) T {
+	continueOnError(sources)
+
 	cfg, err := Parse(defaults, sources...)
 	if err == nil {
 		return cfg

@@ -50,6 +50,17 @@ func (s *flagSource) apply(v reflect.Value) error {
 	return nil
 }
 
+// continueOnError puts every flag set MustParse is about to read into
+// flag.ContinueOnError, since a set that exits or panics on its own would take the choice
+// of status code away from MustParse.
+func continueOnError(sources []Source) {
+	for _, s := range sources {
+		if f, ok := s.(*flagSource); ok {
+			f.set.Init(f.set.Name(), flag.ContinueOnError)
+		}
+	}
+}
+
 // usageFunc lists the flags with their type and default value. Both are read before the
 // fields are registered, so the output shows the defaults instead of the parsed values.
 func usageFunc(set *flag.FlagSet, ff []field) func() {

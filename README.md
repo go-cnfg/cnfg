@@ -464,5 +464,10 @@ Two errors it adds nothing of its own to, since they are on the screen by the ti
 listing and `MustParse` exits with status 0. A flag that will not parse is reported by the flag
 set as well, together with the usage, and that one exits with status 1.
 
+The status is `MustParse`'s to pick, so a `FlagSet` it is handed is put into
+`flag.ContinueOnError` first, whatever it was made with. A set made with `flag.ExitOnError`
+would otherwise end the program itself, with status 2 for a bad flag, before `MustParse` saw
+anything.
+
 Use `Parse` where the caller has somewhere better to put the error, a library, a test, or a
 `main` that logs it its own way.

@@ -69,6 +69,42 @@ func TestMustParseError(t *testing.T) {
 	}
 }
 
+func TestMustParseExitOnError(t *testing.T) {
+	set := flag.NewFlagSet("app", flag.ExitOnError)
+
+	code, out := runMustParse(t, func() {
+		cnfg.MustParse(mustConfig{}, cnfg.FlagSet(set, []string{"-nope"}))
+	})
+
+	if code == nil || *code != 1 {
+		t.Errorf("got exit %v, want 1", code)
+	}
+	if !strings.Contains(out, "flag provided but not defined: -nope") {
+		t.Errorf("stderr should name the flag: %q", out)
+	}
+	if set.ErrorHandling() != flag.ContinueOnError {
+		t.Errorf("got %v, want ContinueOnError", set.ErrorHandling())
+	}
+	if set.Name() != "app" {
+		t.Errorf("the set should keep its name, got %q", set.Name())
+	}
+}
+
+func TestMustParsePanicOnError(t *testing.T) {
+	set := flag.NewFlagSet("app", flag.PanicOnError)
+
+	code, out := runMustParse(t, func() {
+		cnfg.MustParse(mustConfig{Addr: ":8080"}, cnfg.FlagSet(set, []string{"-h"}))
+	})
+
+	if code == nil || *code != 0 {
+		t.Errorf("got exit %v, want 0", code)
+	}
+	if !strings.Contains(out, "-addr string") {
+		t.Errorf("stderr should hold the usage output: %q", out)
+	}
+}
+
 func mustSet() *flag.FlagSet {
 	return flag.NewFlagSet("app", flag.ContinueOnError)
 }
