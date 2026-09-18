@@ -375,6 +375,25 @@ if err != nil {
 log.Println(set.Args())
 ```
 
+Give the set `flag.ContinueOnError` so a bad flag and `-h` come back from `Parse` as errors.
+With `flag.ExitOnError`, which is what `flag.CommandLine` uses, the flag package exits the
+process from inside `Parse` instead, status 2 for a bad flag and 0 for `-h`, and the
+`flag.ErrHelp` check above never runs. `Flags` makes its set with `flag.ContinueOnError` for
+this reason:
+
+```go
+set := flag.NewFlagSet("app", flag.ContinueOnError)
+
+_, err := cnfg.Parse(Config{Addr: ":8080"}, cnfg.FlagSet(set, []string{"-prot", "9090"}))
+fmt.Println(err)
+fmt.Println(errors.Is(err, cnfg.ErrParseFlags))
+```
+
+```
+failed to parse flags: flag provided but not defined: -prot
+true
+```
+
 Flag parsing is a source like any other, so a library with a different flavor of flags takes the
 same place in the chain. With [go-flags](https://github.com/jessevdk/go-flags) the flags come
 from its own struct tags, and `cnfg.Func` wraps the parse:

@@ -21,7 +21,9 @@ func Flags() Source {
 // every [FileFromFlag] in the same [Parse]. A flag the args do not carry leaves its
 // field alone, flags already registered in set are left to their own values, and
 // set.Args() holds the positional args once [Parse] is done. The error wraps
-// [ErrParseFlags], or [flag.ErrHelp] when the user asked for the usage output.
+// [ErrParseFlags], or [flag.ErrHelp] when the user asked for the usage output. Make set
+// with [flag.ContinueOnError] to get those errors back, since with [flag.ExitOnError]
+// the flag package exits the process from inside Parse.
 func FlagSet(set *flag.FlagSet, args []string) Source {
 	return &flagSource{set: set, args: args}
 }

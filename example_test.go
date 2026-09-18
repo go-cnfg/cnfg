@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,6 +76,18 @@ func ExampleFlagSet() {
 	//     	request timeout (default 5s)
 	//   -debug
 	//     	enable debug logging
+}
+
+func ExampleFlagSet_continueOnError() {
+	set := flag.NewFlagSet("app", flag.ContinueOnError)
+	set.SetOutput(io.Discard)
+
+	_, err := cnfg.Parse(AppConfig{Addr: ":8080"}, cnfg.FlagSet(set, []string{"-prot", "9090"}))
+	fmt.Println(err)
+	fmt.Println(errors.Is(err, cnfg.ErrParseFlags))
+	// Output:
+	// failed to parse flags: flag provided but not defined: -prot
+	// true
 }
 
 type ServerConfig struct {
