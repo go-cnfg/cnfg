@@ -33,6 +33,11 @@ const (
 	// UsageTag is what a field is documented with in the flag usage output,
 	// `usage:"address to listen on"`.
 	UsageTag = "usage"
+	// EnvTag names a field in the environment sources only, `env:"LISTENADDR"`, in
+	// place of the name they would otherwise derive. The prefix of the source is
+	// still put in front and nested fields are still joined, so the tag replaces one
+	// segment of the name rather than all of it.
+	EnvTag = "env"
 )
 
 // Errors returned by [Parse] and the sources. They come wrapped in the detail of

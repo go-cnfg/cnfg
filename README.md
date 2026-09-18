@@ -127,6 +127,21 @@ type Config struct {
 }
 ```
 
+A variable that does not follow from the field name gets an `env` tag, which renames the field
+in the environment sources and nowhere else:
+
+```go
+type Config struct {
+    ListenAddr  string `env:"LISTENADDR"` // -listen-addr, APP_LISTENADDR
+    DatabaseURL string `env:"DB_URL"`     // -database-url, APP_DB_URL
+}
+```
+
+The prefix is still put in front and nested fields are still joined, so the tag replaces one
+segment of the name rather than the whole of it. It is normalised like any other name, so
+`env:"listen-addr"` and `env:"LISTEN_ADDR"` are the same variable, and two fields that land on
+the same variable fail with `ErrDuplicateName`.
+
 In config files both the generated name and the Go field name are accepted, and matching
 ignores case, dashes and underscores. `{"server": {"tls-cert": "a.pem"}}` and
 `{"Server": {"TLSCert": "a.pem"}}` do the same thing.
@@ -138,6 +153,7 @@ ignores case, dashes and underscores. `{"server": {"tls-cert": "a.pem"}}` and
 | `cnfg:"name"` | Use the given name instead of the generated one. |
 | `cnfg:"-"` | Leave the field out of all sources. |
 | `usage:"text"` | Document the field in the usage output. |
+| `env:"NAME"` | Use the given name in the environment sources only. |
 | `cnfg:",require"` | Make `Require` fail when the field is still zero, after a name or on its own. |
 
 ## Config files

@@ -410,6 +410,19 @@ func Example_names() {
 	// Output: :9090 cert.pem debug kept <nil>
 }
 
+func Example_envTag() {
+	type Config struct {
+		ListenAddr  string `env:"LISTENADDR"`
+		DatabaseURL string `env:"DB_URL"`
+	}
+
+	cfg, err := cnfg.Parse(Config{},
+		cnfg.EnvFrom("APP", []string{"APP_LISTENADDR=:9090", "APP_DB_URL=postgres://db"}),
+	)
+	fmt.Println(cfg.ListenAddr, cfg.DatabaseURL, err)
+	// Output: :9090 postgres://db <nil>
+}
+
 func Example_invalidValue() {
 	type Config struct {
 		Workers int

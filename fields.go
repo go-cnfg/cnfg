@@ -10,6 +10,7 @@ import (
 // field is a single leaf value of the config struct together with the name it is known by.
 type field struct {
 	name  string
+	env   string
 	usage string
 	value reflect.Value
 }
@@ -49,7 +50,7 @@ func parseTag(sf reflect.StructField) tag {
 // are left out since only the config file can fill them.
 func fields(v reflect.Value) ([]field, error) {
 	var ff []field
-	collect(v, "", &ff)
+	collect(v, "", "", &ff)
 
 	seen := make(map[string]struct{}, len(ff))
 	for _, f := range ff {
@@ -61,7 +62,7 @@ func fields(v reflect.Value) ([]field, error) {
 	return ff, nil
 }
 
-func collect(v reflect.Value, prefix string, ff *[]field) {
+func collect(v reflect.Value, prefix, envPrefix string, ff *[]field) {
 	t := v.Type()
 	for i := range t.NumField() {
 		sf := t.Field(i)
@@ -74,10 +75,16 @@ func collect(v reflect.Value, prefix string, ff *[]field) {
 			continue
 		}
 
+		env := tag.name
+		if alias := sf.Tag.Get(EnvTag); alias != "" {
+			env = alias
+		}
+
 		fv := v.Field(i)
 		if isLeaf(fv.Type()) {
 			*ff = append(*ff, field{
 				name:  prefix + tag.name,
+				env:   envPrefix + env,
 				usage: sf.Tag.Get(UsageTag),
 				value: fv,
 			})
@@ -89,11 +96,12 @@ func collect(v reflect.Value, prefix string, ff *[]field) {
 			continue
 		}
 
-		p := prefix
+		p, ep := prefix, envPrefix
 		if !sf.Anonymous || tag.named {
 			p = prefix + tag.name + "-"
+			ep = envPrefix + env + "-"
 		}
-		collect(sv, p, ff)
+		collect(sv, p, ep, ff)
 	}
 }
 
