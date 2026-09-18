@@ -121,7 +121,7 @@ Nested structs are joined with a dash, env vars use the same name in upper case 
 ```go
 type Config struct {
     ListenAddr string // -listen-addr, LISTEN_ADDR
-    Server struct {
+    Server     struct {
         TLSCert string // -server-tls-cert, SERVER_TLS_CERT
     }
 }
