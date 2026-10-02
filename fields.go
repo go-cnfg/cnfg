@@ -9,10 +9,11 @@ import (
 
 // field is a single leaf value of the config struct together with the name it is known by.
 type field struct {
-	name  string
-	env   string
-	usage string
-	value reflect.Value
+	name   string
+	env    string
+	usage  string
+	secret bool
+	value  reflect.Value
 }
 
 // tag holds what the cnfg struct tag says about a field.
@@ -21,10 +22,11 @@ type tag struct {
 	named   bool
 	skip    bool
 	require bool
+	secret  bool
 }
 
-// parseTag reads the cnfg tag of the field, for example `cnfg:"addr,require"`.
-// The name falls back to the field name.
+// parseTag reads the cnfg tag of the field, for example `cnfg:"addr,require"` or
+// `cnfg:",secret"`. The name falls back to the field name.
 func parseTag(sf reflect.StructField) tag {
 	name, opts, _ := strings.Cut(sf.Tag.Get(NameTag), ",")
 	t := tag{name: name, named: name != ""}
@@ -37,8 +39,11 @@ func parseTag(sf reflect.StructField) tag {
 		t.name = kebab(sf.Name)
 	}
 	for _, opt := range strings.Split(opts, ",") {
-		if strings.TrimSpace(opt) == "require" {
+		switch strings.TrimSpace(opt) {
+		case "require":
 			t.require = true
+		case "secret":
+			t.secret = true
 		}
 	}
 	return t
@@ -83,10 +88,11 @@ func collect(v reflect.Value, prefix, envPrefix string, ff *[]field) {
 		fv := v.Field(i)
 		if isLeaf(fv.Type()) {
 			*ff = append(*ff, field{
-				name:  prefix + tag.name,
-				env:   envPrefix + env,
-				usage: sf.Tag.Get(UsageTag),
-				value: fv,
+				name:   prefix + tag.name,
+				env:    envPrefix + env,
+				usage:  sf.Tag.Get(UsageTag),
+				secret: tag.secret,
+				value:  fv,
 			})
 			continue
 		}
