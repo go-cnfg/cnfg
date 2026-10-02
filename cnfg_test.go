@@ -570,6 +570,46 @@ func TestUsage(t *testing.T) {
 	}
 }
 
+func TestUsageLeavesSecretsOut(t *testing.T) {
+	type Config struct {
+		Token    string `cnfg:",secret"            usage:"API token"`
+		Password string `cnfg:"db-password,secret"`
+		Addr     string
+	}
+	buf := &bytes.Buffer{}
+	set := flag.NewFlagSet("app", flag.ContinueOnError)
+	set.SetOutput(buf)
+
+	cfg, err := cnfg.Parse(Config{Token: "hunter2", Addr: ":8080"},
+		cnfg.EnvFrom("", []string{"DB_PASSWORD=s3cret"}),
+		cnfg.FlagSet(set, []string{"-h"}),
+	)
+	if !errors.Is(err, flag.ErrHelp) {
+		t.Fatalf("got %v, want flag.ErrHelp", err)
+	}
+	assertEqual(t, "parse", Config{}, cfg)
+
+	for _, want := range []string{
+		"-token string\n    \tAPI token\n",
+		"-db-password string\n  -addr string\n    \t(default :8080)",
+	} {
+		if !strings.Contains(buf.String(), want) {
+			t.Errorf("usage missing %q:\n%s", want, buf.String())
+		}
+	}
+	for _, secret := range []string{"hunter2", "s3cret"} {
+		if strings.Contains(buf.String(), secret) {
+			t.Errorf("usage shows %q:\n%s", secret, buf.String())
+		}
+	}
+
+	cfg, err = cnfg.Parse(Config{Token: "hunter2"}, cnfg.EnvFrom("", []string{"DB_PASSWORD=s3cret"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertEqual(t, "secret fields are still read", Config{Token: "hunter2", Password: "s3cret"}, cfg)
+}
+
 func TestUsageWithoutName(t *testing.T) {
 	buf := &bytes.Buffer{}
 	set := flag.NewFlagSet("", flag.ContinueOnError)
