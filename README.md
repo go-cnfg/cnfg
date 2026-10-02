@@ -155,6 +155,7 @@ ignores case, dashes and underscores. `{"server": {"tls-cert": "a.pem"}}` and
 | `usage:"text"` | Document the field in the usage output. |
 | `env:"NAME"` | Use the given name in the environment sources only. |
 | `cnfg:",require"` | Make `Require` fail when the field is still zero, after a name or on its own. |
+| `cnfg:",secret"` | Leave the field's value out of the usage output, for passwords and tokens. |
 
 ## Config files
 
@@ -366,6 +367,24 @@ Usage of app:
     	request timeout (default 5s)
   -debug
     	enable debug logging
+```
+
+The default shown is the field's value when the flags are read, so a secret that an earlier
+source took from the environment would be printed too. Tag such a field `secret` and the listing
+leaves its value out:
+
+```go
+type Config struct {
+    Addr     string `usage:"address to listen on"`
+    Password string `cnfg:",secret" usage:"database password"`
+}
+```
+
+```
+  -addr string
+    	address to listen on (default :8080)
+  -password string
+    	database password
 ```
 
 `Parse` returns an error wrapping `flag.ErrHelp` when the user asked for the usage output, which

@@ -65,6 +65,8 @@ func continueOnError(sources []Source) {
 
 // usageFunc lists the flags with their type and default value. Both are read before the
 // fields are registered, so the output shows the defaults instead of the parsed values.
+// A secret field is listed without its value, since the sources before this one may
+// have filled it from the environment.
 func usageFunc(set *flag.FlagSet, ff []field) func() {
 	var own []*flag.Flag
 	set.VisitAll(func(f *flag.Flag) { own = append(own, f) })
@@ -120,7 +122,7 @@ func ownDefault(f *flag.Flag) string {
 }
 
 func fieldDefault(f field, def string) string {
-	if isBool(f.value.Type()) && def == "false" {
+	if f.secret || (isBool(f.value.Type()) && def == "false") {
 		return ""
 	}
 	return def
